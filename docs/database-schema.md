@@ -1,0 +1,95 @@
+# Database schema
+
+Here is the schema diagram of the three tables and their relationships:
+```
+users ──< events ──< event_tags >── tags
+```
+
+---
+
+## users
+
+| Column          | Type                | Constraints                 |
+| --------------- | ------------------- | --------------------------- |
+| `id`            | BIGINT UNSIGNED     | PK, AUTO_INCREMENT          |
+| `name`          | VARCHAR(100)        | NOT NULL                    |
+| `email`         | VARCHAR(255)        | NOT NULL, UNIQUE            |
+| `password_hash` | VARCHAR(255)        | NOT NULL                    |
+| `created_at`    | DATETIME            | NOT NULL, default now (UTC) |
+| `updated_at`    | DATETIME            | NOT NULL, default now (UTC), auto-updated |
+
+
+## events
+
+| Column        | Type                       | Constraints                          |
+| ------------- | -------------------------- | ------------------------------------ |
+| `id`          | BIGINT UNSIGNED            | PK, AUTO_INCREMENT                   |
+| `creator_id`  | BIGINT UNSIGNED            | NOT NULL, FK → `users.id`, CASCADE   |
+| `title`       | VARCHAR(150)               | NOT NULL                             |
+| `description` | TEXT                       | NULL                                 |
+| `starts_at`   | DATETIME                   | NOT NULL (UTC)                       |
+| `location`    | VARCHAR(255)               | NOT NULL                             |
+| `visibility`  | ENUM('public', 'private')  | NOT NULL, default `'public'`         |
+| `created_at`  | DATETIME                   | NOT NULL, default now (UTC)          |
+| `updated_at`  | DATETIME                   | NOT NULL, default now (UTC), auto-updated |
+
+Indexes:
+
+| Index                      | Serves                                              |
+| -------------------------- | --------------------------------------------------- |
+| `(starts_at)`              | Upcoming/past split, sorting by date                |
+| `(creator_id)`             | "My events", and the ownership lookup before edits  |
+| `(visibility, starts_at)`  | The main listing query, which filters on visibility and orders by date together |
+
+
+## tags
+
+| Column       | Type            | Constraints                 |
+| ------------ | --------------- | ---------------------------- |
+| `id`         | BIGINT UNSIGNED | PK, AUTO_INCREMENT          |
+| `name`       | VARCHAR(50)     | NOT NULL, UNIQUE            |
+| `created_at` | DATETIME        | NOT NULL, default now (UTC) |
+
+
+
+## event_tags
+
+| Column     | Type            | Constraints                         |
+| ---------- | --------------- | ------------------------------------ |
+| `event_id` | BIGINT UNSIGNED | NOT NULL, FK → `events.id`, CASCADE |
+| `tag_id`   | BIGINT UNSIGNED | NOT NULL, FK → `tags.id`, CASCADE   |
+
+| Index                            | Purpose                                       |
+| --------------------------------- | ---------------------------------------------- |
+| PRIMARY KEY `(event_id, tag_id)` | Natural key; makes duplicate assignment impossible |
+| `(tag_id, event_id)`             | Reverse lookup: all events carrying a tag     |
+
+
+## Cardinality
+
+| Relationship        | Cardinality  | Enforced by                            |
+| -------------------- | ------------ | --------------------------------------- |
+| users → events      | one-to-many  | `events.creator_id` FK                 |
+| events ↔ tags       | many-to-many | `event_tags` join table                |
+
+## `created_at` / `updated_at` semantics
+
+Both timestamp columns are set by the database, not the application:
+
+```sql
+created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+```
+
+`ON UPDATE CURRENT_TIMESTAMP` means every `UPDATE` statement that touches the row
+refreshes `updated_at` automatically, including one written directly against the
+database for a fix or migration. Relying on the service layer to set it on every
+write path is one more thing to forget; letting MySQL own it removes the failure
+mode entirely.
+
+## Writes that need a transaction
+
+Creating or updating an event with tags touches `events`, possibly `tags` (for
+names not yet seen) and `event_tags`. These run inside a single transaction, so a
+failure partway cannot leave an event with half its tags, or a newly created tag
+attached to nothing.
