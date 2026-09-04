@@ -21,8 +21,14 @@ Request:
 
 Response `201`:
 ```json
-{ "user": { "id": 1, "name": "Ada Lovelace", "email": "ada@example.com" }, "token": "<jwt>" }
+{ "user": { "id": 1, "name": "Ada Lovelace", "email": "ada@example.com", "emailVerified": false }, "token": "<jwt>" }
 ```
+
+Registration also creates a single-use verification token and "sends" a link
+`{FRONTEND_URL}/verify-email?token=<raw token>` (in dev this is just logged to
+the backend console — see `backend/src/modules/auth/mailer.ts`). The account
+is usable immediately (login isn't blocked on verification); `emailVerified`
+is exposed on the user object so the frontend can prompt for it.
 
 Errors: `400` validation (missing/short fields), `409` email already registered.
 
@@ -34,6 +40,24 @@ Response `200`: same shape as register.
 
 Errors: `400` validation, `401` invalid credentials (same message whether the
 email doesn't exist or the password is wrong — don't leak which).
+
+### `POST /api/auth/verify-email`
+
+Request: `{ "token": "<raw token from the emailed link>" }`
+
+Response `200`: `{ "verified": true }`. The token is single-use and expires
+24 hours after issue (`email_verifications.expires_at`); either failure case
+returns the same `400`.
+
+Errors: `400` missing/invalid/expired token.
+
+### `POST /api/auth/resend-verification` (auth required)
+
+No body. Issues a fresh token for the caller's own account (invalidating any
+previous outstanding one) and re-sends the link. Response `200`:
+`{ "message": "Verification email sent" }`.
+
+Errors: `400` email is already verified, `401` no/invalid token.
 
 ## Events
 
@@ -118,7 +142,10 @@ Same body shape as create (partial updates allowed — omitted fields are
 unchanged). Response `200`: updated event.
 
 Errors: `400` validation, `401` no/invalid token, `403` authenticated but not
-the creator, `404` event doesn't exist.
+the creator of a **public** event, `404` event doesn't exist — or exists but
+is **private** and the requester isn't the creator (same existence-hiding
+rule as `GET`; a non-owner must not be able to tell a private event apart
+from a nonexistent one by getting `403` instead of `404`).
 
 ### `DELETE /api/events/:id` (auth, creator only)
 

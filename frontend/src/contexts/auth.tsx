@@ -7,6 +7,7 @@ interface AuthContextValue {
   user: User | null;
   token: string | null;
   setSession: (data: AuthResponse) => void;
+  updateUser: (patch: Partial<User>) => void;
   logout: () => void;
 }
 
@@ -34,13 +35,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setToken(data.token);
   }, []);
 
+  // Reads the token back out of localStorage rather than closing over the
+  // `token` state value, so this stays correct without needing `token` in
+  // its dependency array.
+  const updateUser = useCallback((patch: Partial<User>) => {
+    setUser((prev) => {
+      if (!prev) return prev;
+      const next = { ...prev, ...patch };
+      const stored = loadStored();
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({ user: next, token: stored?.token ?? '' }));
+      return next;
+    });
+  }, []);
+
   const logout = useCallback(() => {
     localStorage.removeItem(STORAGE_KEY);
     setUser(null);
     setToken(null);
   }, []);
 
-  return <AuthContext.Provider value={{ user, token, setSession, logout }}>{children}</AuthContext.Provider>;
+  return (
+    <AuthContext.Provider value={{ user, token, setSession, updateUser, logout }}>{children}</AuthContext.Provider>
+  );
 }
 
 export function useAuth(): AuthContextValue {

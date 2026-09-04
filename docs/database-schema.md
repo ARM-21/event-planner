@@ -15,6 +15,7 @@ users ──< events ──< event_tags >── tags
 | `name`          | VARCHAR(100)        | NOT NULL                    |
 | `email`         | VARCHAR(255)        | NOT NULL, UNIQUE            |
 | `password_hash` | VARCHAR(255)        | NOT NULL                    |
+| `email_verified_at` | DATETIME        | NULL — set once the emailed link is confirmed |
 | `created_at`    | DATETIME            | NOT NULL, default now (UTC) |
 | `updated_at`    | DATETIME            | NOT NULL, default now (UTC), auto-updated |
 
@@ -65,6 +66,21 @@ Indexes:
 | PRIMARY KEY `(event_id, tag_id)` | Natural key; makes duplicate assignment impossible |
 | `(tag_id, event_id)`             | Reverse lookup: all events carrying a tag     |
 
+
+## email_verifications
+
+| Column        | Type            | Constraints                          |
+| ------------- | --------------- | ------------------------------------- |
+| `id`          | BIGINT UNSIGNED | PK, AUTO_INCREMENT                   |
+| `user_id`     | BIGINT UNSIGNED | NOT NULL, FK → `users.id`, CASCADE   |
+| `token_hash`  | VARCHAR(64)     | NOT NULL, UNIQUE — sha256 hex of the raw emailed token |
+| `expires_at`  | DATETIME        | NOT NULL — 24h after issue           |
+| `created_at`  | DATETIME        | NOT NULL, default now (UTC)          |
+
+Indexes: `(user_id)` for the resend/cleanup lookup. At most one row per user
+at a time — issuing a new token (register, or a resend) deletes any prior
+one; a successful verify deletes the row it consumed. Only the hash is
+stored, same reasoning as `users.password_hash`.
 
 ## Cardinality
 
