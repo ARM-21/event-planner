@@ -5,6 +5,7 @@ import authRoutes from './modules/auth/auth.routes';
 import eventsRoutes from './modules/events/events.routes';
 import tagsRoutes from './modules/tags/tags.routes';
 import { errorHandler } from './middleware/errorHandler';
+import { requestLogger } from './middleware/requestLogger';
 import { db } from './db/knex';
 import { openApiSpec } from './docs/openapi';
 
@@ -13,6 +14,7 @@ export const app = express();
 app.use(cors());
 app.use(express.json());
 app.disable('x-powered-by');
+app.use(requestLogger);
 
 app.use('/api/docs', swaggerUi.serve, swaggerUi.setup(openApiSpec));
 

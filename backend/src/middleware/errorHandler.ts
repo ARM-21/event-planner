@@ -1,7 +1,8 @@
 import type { NextFunction, Request, Response } from 'express';
 import { AppError } from '../utils/errors';
+import { logger } from '../utils/logger';
 
-export function errorHandler(err: unknown, _req: Request, res: Response, _next: NextFunction): void {
+export function errorHandler(err: unknown, req: Request, res: Response, _next: NextFunction): void {
   if (err instanceof AppError) {
     res.status(err.status).json({
       error: { message: err.message, ...(err.details ? { details: err.details } : {}) },
@@ -9,6 +10,8 @@ export function errorHandler(err: unknown, _req: Request, res: Response, _next: 
     return;
   }
 
-  console.error(err);
+  logger.error(`Unhandled error on ${req.method} ${req.originalUrl}`, {
+    error: err instanceof Error ? { message: err.message, stack: err.stack } : err,
+  });
   res.status(500).json({ error: { message: 'Internal server error' } });
 }
