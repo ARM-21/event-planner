@@ -133,7 +133,7 @@ router.post('/resend-verification', requireAuth, async (req, res, next) => {
       return;
     }
     if (user.email_verified_at) {
-      next(badRequest('Email is already verified'));
+      next(conflict('Email is already verified'));
       return;
     }
     await issueVerificationEmail(user.id, user.email);

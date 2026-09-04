@@ -194,7 +194,7 @@ export const openApiSpec = {
         security: [{ bearerAuth: [] }],
         responses: {
           '200': { description: 'Sent', content: { 'application/json': { schema: { type: 'object', properties: { message: { type: 'string' } } } } } },
-          '400': { description: 'Email already verified', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
+          '409': { description: 'Email already verified', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
           '401': { description: 'No/invalid token', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
         },
       },

@@ -31,4 +31,11 @@ app.use('/api/auth', authRoutes);
 app.use('/api/events', eventsRoutes);
 app.use('/api/tags', tagsRoutes);
 
+// Unmatched routes fall through to here rather than Express's default HTML
+// 404 page, so every response — matched or not — uses the documented error
+// envelope.
+app.use((_req, res) => {
+  res.status(404).json({ error: { message: 'Not found' } });
+});
+
 app.use(errorHandler);

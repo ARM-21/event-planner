@@ -57,7 +57,7 @@ No body. Issues a fresh token for the caller's own account (invalidating any
 previous outstanding one) and re-sends the link. Response `200`:
 `{ "message": "Verification email sent" }`.
 
-Errors: `400` email is already verified, `401` no/invalid token.
+Errors: `409` email is already verified, `401` no/invalid token.
 
 ## Events
 
@@ -177,5 +177,5 @@ Every non-2xx response body:
 | 401    | missing/invalid/expired token, or bad credentials  |
 | 403    | authenticated, but not authorized for this action  |
 | 404    | resource doesn't exist (or is hidden from you)     |
-| 409    | conflict (duplicate email on register)             |
+| 409    | conflict with the resource's current state (duplicate email on register, resending a verification email that's already verified) |
 | 500    | unhandled server error                             |
