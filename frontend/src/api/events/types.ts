@@ -3,6 +3,7 @@ export interface EventItem {
   title: string;
   description: string | null;
   startsAt: string;
+  endsAt: string;
   location: string;
   visibility: 'public' | 'private';
   creatorId: number;
@@ -27,6 +28,7 @@ export interface EventInput {
   title: string;
   description?: string;
   startsAt: string;
+  endsAt: string;
   location: string;
   visibility: 'public' | 'private';
   tags: string[];
@@ -39,5 +41,6 @@ export interface ListEventsParams {
   tag?: string;
   visibility?: 'public' | 'private';
   from?: string;
+  status?: 'upcoming' | 'past';
   sort?: 'starts_at' | '-starts_at';
 }

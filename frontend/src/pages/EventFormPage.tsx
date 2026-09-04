@@ -10,7 +10,7 @@ import type { EventInput } from '../api/events/types';
 import { useAuth } from '../contexts/auth';
 import { useEvent } from '../query/events/use-event';
 import { useTags } from '../query/tags/use-tags';
-import { eventFormSchema, type EventFormValues } from '../lib/schemas';
+import { createEventFormSchema, eventFormSchema, MIN_LEAD_TIME_MS, type EventFormValues } from '../lib/schemas';
 import { Button, Card, Field, Input, Select, Textarea } from '../components/ui';
 import { TagInput } from '../components/TagInput';
 
@@ -28,6 +28,7 @@ const emptyDefaults: EventFormValues = {
   title: '',
   description: '',
   startsAt: '',
+  endsAt: '',
   location: '',
   visibility: 'public',
   tags: [],
@@ -53,9 +54,20 @@ export default function EventFormPage() {
     register,
     handleSubmit,
     reset,
+    watch,
     setError,
     formState: { errors, dirtyFields },
-  } = useForm<EventFormValues>({ resolver: zodResolver(eventFormSchema), defaultValues: emptyDefaults });
+  } = useForm<EventFormValues>({
+    resolver: zodResolver(isEdit ? eventFormSchema : createEventFormSchema),
+    defaultValues: emptyDefaults,
+  });
+
+  const watchedStartsAt = watch('startsAt');
+  // Only nudges the native picker on create — an existing event's startsAt
+  // may already be under 24h out, and forcing this min in edit mode would
+  // make that field impossible to leave alone in the UI (even though
+  // submitting it unchanged is still fine, since it won't be re-validated).
+  const minStartsAt = isEdit ? undefined : toDatetimeLocal(new Date(Date.now() + MIN_LEAD_TIME_MS).toISOString());
 
   useEffect(() => {
     if (!eventQuery.data) return;
@@ -69,6 +81,7 @@ export default function EventFormPage() {
       title: event.title,
       description: event.description ?? '',
       startsAt: toDatetimeLocal(event.startsAt),
+      endsAt: toDatetimeLocal(event.endsAt),
       location: event.location,
       visibility: event.visibility,
       tags: event.tags,
@@ -106,6 +119,7 @@ export default function EventFormPage() {
         if (dirtyFields.location) payload.location = values.location;
         if (dirtyFields.visibility) payload.visibility = values.visibility;
         if (dirtyFields.startsAt) payload.startsAt = new Date(values.startsAt).toISOString();
+        if (dirtyFields.endsAt) payload.endsAt = new Date(values.endsAt).toISOString();
         if (!arraysEqual(values.tags, originalTags)) payload.tags = values.tags;
 
         if (Object.keys(payload).length > 0) {
@@ -118,6 +132,7 @@ export default function EventFormPage() {
           title: values.title,
           description: values.description || undefined,
           startsAt: new Date(values.startsAt).toISOString(),
+          endsAt: new Date(values.endsAt).toISOString(),
           location: values.location,
           visibility: values.visibility,
           tags: values.tags,
@@ -179,7 +194,10 @@ export default function EventFormPage() {
             <Textarea id="description" rows={3} {...register('description')} />
           </Field>
           <Field label="Starts at" htmlFor="startsAt" error={errors.startsAt?.message}>
-            <Input id="startsAt" type="datetime-local" {...register('startsAt')} />
+            <Input id="startsAt" type="datetime-local" min={minStartsAt} {...register('startsAt')} />
+          </Field>
+          <Field label="Ends at" htmlFor="endsAt" error={errors.endsAt?.message}>
+            <Input id="endsAt" type="datetime-local" min={watchedStartsAt || undefined} {...register('endsAt')} />
           </Field>
           <Field label="Location" htmlFor="location" error={errors.location?.message}>
             <Input id="location" {...register('location')} />

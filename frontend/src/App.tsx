@@ -3,6 +3,7 @@ import LoginPage from './pages/LoginPage.tsx';
 import RegisterPage from './pages/RegisterPage.tsx';
 import EventsPage from './pages/EventsPage.tsx';
 import EventFormPage from './pages/EventFormPage.tsx';
+import EventDetailPage from './pages/EventDetailPage.tsx';
 import ProtectedRoute from './components/ProtectedRoute.tsx';
 
 export default function App() {
@@ -11,6 +12,7 @@ export default function App() {
       <Route path="/login" element={<LoginPage />} />
       <Route path="/register" element={<RegisterPage />} />
       <Route path="/events" element={<EventsPage />} />
+      <Route path="/events/:id" element={<EventDetailPage />} />
       <Route element={<ProtectedRoute />}>
         <Route path="/events/new" element={<EventFormPage />} />
         <Route path="/events/:id/edit" element={<EventFormPage />} />

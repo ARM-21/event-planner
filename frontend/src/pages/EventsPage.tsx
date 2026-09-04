@@ -6,6 +6,7 @@ import { deleteEvent } from '../api/events/event-deletor';
 import { useAuth } from '../contexts/auth';
 import { useEvents } from '../query/events/use-events';
 import { useTags } from '../query/tags/use-tags';
+import { formatEventRange } from '../lib/formatEventRange';
 import { Button, Input, Select } from '../components/ui';
 
 const LIMIT = 10;
@@ -15,6 +16,7 @@ export default function EventsPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
 
+  const [status, setStatus] = useState<'upcoming' | 'past'>('upcoming');
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState('');
   const [searchInput, setSearchInput] = useState('');
@@ -29,10 +31,17 @@ export default function EventsPage() {
       search: search || undefined,
       tag: tag || undefined,
       visibility: visibility || undefined,
+      status,
       sort,
     },
     token,
   );
+
+  function handleStatusChange(next: 'upcoming' | 'past') {
+    setStatus(next);
+    setSort(next === 'upcoming' ? 'starts_at' : '-starts_at');
+    setPage(1);
+  }
   const tagsQuery = useTags();
 
   const deleteMutation = useMutation({
@@ -94,6 +103,27 @@ export default function EventsPage() {
       </header>
 
       <main className="mx-auto max-w-5xl px-4 py-8">
+        <div className="mb-4 inline-flex rounded-md border border-gray-200 bg-white p-1">
+          <button
+            type="button"
+            onClick={() => handleStatusChange('upcoming')}
+            className={`rounded px-3 py-1.5 text-sm font-medium transition ${
+              status === 'upcoming' ? 'bg-indigo-600 text-white' : 'text-gray-600 hover:bg-gray-100'
+            }`}
+          >
+            Upcoming
+          </button>
+          <button
+            type="button"
+            onClick={() => handleStatusChange('past')}
+            className={`rounded px-3 py-1.5 text-sm font-medium transition ${
+              status === 'past' ? 'bg-indigo-600 text-white' : 'text-gray-600 hover:bg-gray-100'
+            }`}
+          >
+            Past
+          </button>
+        </div>
+
         <form onSubmit={handleSearchSubmit} className="mb-6 flex flex-wrap items-end gap-3">
           <div className="min-w-[200px] flex-1">
             <label htmlFor="search" className="mb-1 block text-sm font-medium text-gray-700">
@@ -181,7 +211,11 @@ export default function EventsPage() {
                 <div className="flex items-start justify-between gap-4">
                   <div>
                     <div className="flex items-center gap-2">
-                      <h2 className="text-base font-semibold text-gray-900">{event.title}</h2>
+                      <h2 className="text-base font-semibold text-gray-900">
+                        <Link to={`/events/${event.id}`} className="hover:text-indigo-600 hover:underline">
+                          {event.title}
+                        </Link>
+                      </h2>
                       {event.visibility === 'private' && (
                         <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800">
                           Private
@@ -189,7 +223,7 @@ export default function EventsPage() {
                       )}
                     </div>
                     <p className="mt-1 text-sm text-gray-600">
-                      {new Date(event.startsAt).toLocaleString()} · {event.location}
+                      {formatEventRange(event.startsAt, event.endsAt)} · {event.location}
                     </p>
                     {event.description && <p className="mt-2 text-sm text-gray-700">{event.description}</p>}
                     {event.tags.length > 0 && (
