@@ -4,7 +4,7 @@ import { db } from '../../db/knex';
 import { requireAuth, optionalAuth } from '../../middleware/auth';
 import { badRequest, forbidden, notFound } from '../../utils/errors';
 import { zodIssuesToDetails } from '../../utils/validation';
-import { createEventSchema, updateEventSchema, listEventsQuerySchema } from './events.schemas';
+import { createEventSchema, updateEventSchema, listEventsQuerySchema, MIN_DURATION_MS } from './events.schemas';
 import { type EventRow, toPublicEvent, fetchTagsByEventIds, upsertTagIds } from './events.service';
 
 const router = Router();
@@ -33,7 +33,7 @@ router.get('/', optionalAuth, async (req, res, next) => {
     next(badRequest('Validation failed', zodIssuesToDetails(parsed.error)));
     return;
   }
-  const { page, limit, search, tag, visibility, from, sort } = parsed.data;
+  const { page, limit, search, tag, visibility, from, status, sort } = parsed.data;
 
   try {
     const base = db('events');
@@ -45,6 +45,12 @@ router.get('/', optionalAuth, async (req, res, next) => {
       });
     }
     if (from) base.andWhere('events.starts_at', '>=', new Date(from));
+    // Compared against the DB's clock (not the client's `from`/req time) so
+    // "upcoming" vs "past" can't disagree with each other under clock skew.
+    if (status === 'upcoming') base.andWhere('events.starts_at', '>=', db.fn.now());
+    // "past" means concluded, not merely started — an event that's in
+    // progress (started but not yet ended) is neither upcoming nor past.
+    if (status === 'past') base.andWhere('events.ends_at', '<', db.fn.now());
     if (tag) {
       base.andWhere(
         'events.id',
@@ -83,7 +89,7 @@ router.post('/', requireAuth, async (req, res, next) => {
     next(badRequest('Validation failed', zodIssuesToDetails(parsed.error)));
     return;
   }
-  const { title, description, startsAt, location, visibility, tags } = parsed.data;
+  const { title, description, startsAt, endsAt, location, visibility, tags } = parsed.data;
 
   try {
     const event = await db.transaction(async (trx) => {
@@ -92,6 +98,7 @@ router.post('/', requireAuth, async (req, res, next) => {
         title,
         description: description ?? null,
         starts_at: new Date(startsAt),
+        ends_at: new Date(endsAt),
         location,
         visibility,
       });
@@ -151,9 +158,25 @@ router.put('/:id', requireAuth, async (req, res, next) => {
       return;
     }
 
-    const { tags, startsAt, ...rest } = parsed.data;
+    const { tags, startsAt, endsAt, ...rest } = parsed.data;
+
+    // The schema only catches an insufficient gap when both are present in
+    // the same request — when only one is being changed, it has to be
+    // checked against the other's existing stored value instead.
+    const effectiveStartsAt = startsAt ? new Date(startsAt) : new Date(existing.starts_at);
+    const effectiveEndsAt = endsAt ? new Date(endsAt) : new Date(existing.ends_at);
+    if (effectiveEndsAt.getTime() - effectiveStartsAt.getTime() < MIN_DURATION_MS) {
+      next(
+        badRequest('Validation failed', [
+          { field: 'endsAt', message: 'endsAt must be at least 15 minutes after startsAt' },
+        ]),
+      );
+      return;
+    }
+
     const updates: Record<string, unknown> = { ...rest };
     if (startsAt) updates.starts_at = new Date(startsAt);
+    if (endsAt) updates.ends_at = new Date(endsAt);
 
     const row = await db.transaction(async (trx) => {
       if (Object.keys(updates).length > 0) {

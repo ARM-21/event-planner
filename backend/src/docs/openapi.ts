@@ -55,6 +55,7 @@ export const openApiSpec = {
           title: { type: 'string' },
           description: { type: 'string', nullable: true },
           startsAt: { type: 'string', format: 'date-time' },
+          endsAt: { type: 'string', format: 'date-time' },
           location: { type: 'string' },
           visibility: { type: 'string', enum: ['public', 'private'] },
           creatorId: { type: 'integer' },
@@ -65,11 +66,12 @@ export const openApiSpec = {
       },
       EventInput: {
         type: 'object',
-        required: ['title', 'startsAt', 'location'],
+        required: ['title', 'startsAt', 'endsAt', 'location'],
         properties: {
           title: { type: 'string' },
           description: { type: 'string' },
-          startsAt: { type: 'string', format: 'date-time' },
+          startsAt: { type: 'string', format: 'date-time', description: 'Must be at least 24 hours from now' },
+          endsAt: { type: 'string', format: 'date-time', description: 'Must be at least 15 minutes after startsAt' },
           location: { type: 'string' },
           visibility: { type: 'string', enum: ['public', 'private'] },
           tags: { type: 'array', items: { type: 'string' } },
@@ -178,6 +180,7 @@ export const openApiSpec = {
           { name: 'tag', in: 'query', schema: { type: 'string' } },
           { name: 'visibility', in: 'query', schema: { type: 'string', enum: ['public', 'private'] } },
           { name: 'from', in: 'query', schema: { type: 'string', format: 'date-time' } },
+          { name: 'status', in: 'query', schema: { type: 'string', enum: ['upcoming', 'past'] } },
           { name: 'sort', in: 'query', schema: { type: 'string', enum: ['starts_at', '-starts_at'] } },
         ],
         security: [{ bearerAuth: [] }, {}],
@@ -199,6 +202,7 @@ export const openApiSpec = {
               example: {
                 title: 'Launch party',
                 startsAt: '2026-10-01T18:00:00.000Z',
+                endsAt: '2026-10-01T20:00:00.000Z',
                 location: 'Kathmandu',
                 visibility: 'public',
                 tags: ['launch', 'party'],

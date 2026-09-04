@@ -7,6 +7,7 @@ export interface EventRow {
   title: string;
   description: string | null;
   starts_at: Date | string;
+  ends_at: Date | string;
   location: string;
   visibility: 'public' | 'private';
   created_at: Date | string;
@@ -19,6 +20,7 @@ export function toPublicEvent(row: EventRow, tags: string[]) {
     title: row.title,
     description: row.description,
     startsAt: new Date(row.starts_at).toISOString(),
+    endsAt: new Date(row.ends_at).toISOString(),
     location: row.location,
     visibility: row.visibility,
     creatorId: row.creator_id,
