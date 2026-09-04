@@ -18,6 +18,7 @@ export const openApiSpec = {
           id: { type: 'integer' },
           name: { type: 'string' },
           email: { type: 'string', format: 'email' },
+          emailVerified: { type: 'boolean' },
         },
       },
       AuthResponse: {
@@ -170,6 +171,34 @@ export const openApiSpec = {
         },
       },
     },
+    '/auth/verify-email': {
+      post: {
+        summary: 'Verify an email address using the token from the emailed link',
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: { type: 'object', required: ['token'], properties: { token: { type: 'string' } } },
+            },
+          },
+        },
+        responses: {
+          '200': { description: 'Verified', content: { 'application/json': { schema: { type: 'object', properties: { verified: { type: 'boolean' } } } } } },
+          '400': { description: 'Missing, invalid, or expired token', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
+        },
+      },
+    },
+    '/auth/resend-verification': {
+      post: {
+        summary: "Send a new verification email for the caller's own account",
+        security: [{ bearerAuth: [] }],
+        responses: {
+          '200': { description: 'Sent', content: { 'application/json': { schema: { type: 'object', properties: { message: { type: 'string' } } } } } },
+          '400': { description: 'Email already verified', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
+          '401': { description: 'No/invalid token', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
+        },
+      },
+    },
     '/events': {
       get: {
         summary: 'List events (paginated, filterable)',
@@ -248,8 +277,8 @@ export const openApiSpec = {
           },
           '400': { description: 'Validation failed', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
           '401': { description: 'No/invalid token', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
-          '403': { description: 'Not the creator', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
-          '404': { description: 'Not found', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
+          '403': { description: 'Not the creator of a public event', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
+          '404': { description: "Not found, or a private event you don't own", content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
         },
       },
       delete: {
@@ -259,8 +288,8 @@ export const openApiSpec = {
         responses: {
           '204': { description: 'Deleted' },
           '401': { description: 'No/invalid token', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
-          '403': { description: 'Not the creator', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
-          '404': { description: 'Not found', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
+          '403': { description: 'Not the creator of a public event', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
+          '404': { description: "Not found, or a private event you don't own", content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
         },
       },
     },

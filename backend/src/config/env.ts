@@ -14,4 +14,6 @@ function required(name: string): string {
 export const env = {
   port: Number(process.env.PORT ?? 4000),
   jwtSecret: required('JWT_SECRET'),
+  // Base URL of the frontend, used to build links sent in emails.
+  frontendUrl: process.env.FRONTEND_URL ?? 'http://localhost:5173',
 };

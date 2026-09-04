@@ -27,6 +27,14 @@ function parseEventId(raw: unknown): number | null {
   return Number.isInteger(id) && id > 0 ? id : null;
 }
 
+// A private event is 404'd for non-owners on GET so its existence isn't
+// leaked. PUT/DELETE must preserve that: 403 would confirm the event
+// exists to someone who can't even see it, defeating the point.
+function ownershipError(existing: Pick<EventRow, 'creator_id' | 'visibility'>, userId: number | undefined) {
+  if (existing.creator_id === userId) return null;
+  return existing.visibility === 'private' ? notFound('Event not found') : forbidden();
+}
+
 router.get('/', optionalAuth, async (req, res, next) => {
   const parsed = listEventsQuerySchema.safeParse(req.query);
   if (!parsed.success) {
@@ -153,8 +161,9 @@ router.put('/:id', requireAuth, async (req, res, next) => {
       next(notFound('Event not found'));
       return;
     }
-    if (existing.creator_id !== req.userId) {
-      next(forbidden());
+    const authzError = ownershipError(existing, req.userId);
+    if (authzError) {
+      next(authzError);
       return;
     }
 
@@ -211,8 +220,9 @@ router.delete('/:id', requireAuth, async (req, res, next) => {
       next(notFound('Event not found'));
       return;
     }
-    if (existing.creator_id !== req.userId) {
-      next(forbidden());
+    const authzError = ownershipError(existing, req.userId);
+    if (authzError) {
+      next(authzError);
       return;
     }
     await db('events').where({ id }).delete();
