@@ -1,6 +1,3 @@
-// Hand-written OpenAPI spec, kept in sync with docs/api-contract.md and
-// grown alongside implementation — only documents endpoints that actually
-// exist, so "Try it out" in Swagger UI never hits an unbuilt route.
 
 export const openApiSpec = {
   openapi: '3.0.3',
@@ -49,6 +46,55 @@ export const openApiSpec = {
               },
             },
           },
+        },
+      },
+      Event: {
+        type: 'object',
+        properties: {
+          id: { type: 'integer' },
+          title: { type: 'string' },
+          description: { type: 'string', nullable: true },
+          startsAt: { type: 'string', format: 'date-time' },
+          location: { type: 'string' },
+          visibility: { type: 'string', enum: ['public', 'private'] },
+          creatorId: { type: 'integer' },
+          tags: { type: 'array', items: { type: 'string' } },
+          createdAt: { type: 'string', format: 'date-time' },
+          updatedAt: { type: 'string', format: 'date-time' },
+        },
+      },
+      EventInput: {
+        type: 'object',
+        required: ['title', 'startsAt', 'location'],
+        properties: {
+          title: { type: 'string' },
+          description: { type: 'string' },
+          startsAt: { type: 'string', format: 'date-time' },
+          location: { type: 'string' },
+          visibility: { type: 'string', enum: ['public', 'private'] },
+          tags: { type: 'array', items: { type: 'string' } },
+        },
+      },
+      EventList: {
+        type: 'object',
+        properties: {
+          data: { type: 'array', items: { $ref: '#/components/schemas/Event' } },
+          pagination: {
+            type: 'object',
+            properties: {
+              page: { type: 'integer' },
+              limit: { type: 'integer' },
+              total: { type: 'integer' },
+              totalPages: { type: 'integer' },
+            },
+          },
+        },
+      },
+      Tag: {
+        type: 'object',
+        properties: {
+          id: { type: 'integer' },
+          name: { type: 'string' },
         },
       },
     },
@@ -122,8 +168,109 @@ export const openApiSpec = {
         },
       },
     },
+    '/events': {
+      get: {
+        summary: 'List events (paginated, filterable)',
+        parameters: [
+          { name: 'page', in: 'query', schema: { type: 'integer', minimum: 1 } },
+          { name: 'limit', in: 'query', schema: { type: 'integer', minimum: 1, maximum: 100 } },
+          { name: 'search', in: 'query', schema: { type: 'string' } },
+          { name: 'tag', in: 'query', schema: { type: 'string' } },
+          { name: 'visibility', in: 'query', schema: { type: 'string', enum: ['public', 'private'] } },
+          { name: 'from', in: 'query', schema: { type: 'string', format: 'date-time' } },
+          { name: 'sort', in: 'query', schema: { type: 'string', enum: ['starts_at', '-starts_at'] } },
+        ],
+        security: [{ bearerAuth: [] }, {}],
+        responses: {
+          '200': {
+            description: 'Paginated event list',
+            content: { 'application/json': { schema: { $ref: '#/components/schemas/EventList' } } },
+          },
+        },
+      },
+      post: {
+        summary: 'Create an event',
+        security: [{ bearerAuth: [] }],
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: { $ref: '#/components/schemas/EventInput' },
+              example: {
+                title: 'Launch party',
+                startsAt: '2026-10-01T18:00:00.000Z',
+                location: 'Kathmandu',
+                visibility: 'public',
+                tags: ['launch', 'party'],
+              },
+            },
+          },
+        },
+        responses: {
+          '201': {
+            description: 'Event created',
+            content: { 'application/json': { schema: { $ref: '#/components/schemas/Event' } } },
+          },
+          '400': { description: 'Validation failed', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
+          '401': { description: 'No/invalid token', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
+        },
+      },
+    },
+    '/events/{id}': {
+      get: {
+        summary: 'Get a single event',
+        security: [{ bearerAuth: [] }, {}],
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'integer' } }],
+        responses: {
+          '200': {
+            description: 'Event',
+            content: { 'application/json': { schema: { $ref: '#/components/schemas/Event' } } },
+          },
+          '404': { description: 'Not found or hidden from you', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
+        },
+      },
+      put: {
+        summary: 'Update an event (creator only)',
+        security: [{ bearerAuth: [] }],
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'integer' } }],
+        requestBody: {
+          required: true,
+          content: { 'application/json': { schema: { $ref: '#/components/schemas/EventInput' } } },
+        },
+        responses: {
+          '200': {
+            description: 'Updated event',
+            content: { 'application/json': { schema: { $ref: '#/components/schemas/Event' } } },
+          },
+          '400': { description: 'Validation failed', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
+          '401': { description: 'No/invalid token', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
+          '403': { description: 'Not the creator', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
+          '404': { description: 'Not found', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
+        },
+      },
+      delete: {
+        summary: 'Delete an event (creator only)',
+        security: [{ bearerAuth: [] }],
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'integer' } }],
+        responses: {
+          '204': { description: 'Deleted' },
+          '401': { description: 'No/invalid token', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
+          '403': { description: 'Not the creator', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
+          '404': { description: 'Not found', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
+        },
+      },
+    },
+    '/tags': {
+      get: {
+        summary: 'List all tags',
+        responses: {
+          '200': {
+            description: 'Tag list',
+            content: { 'application/json': { schema: { type: 'object', properties: { data: { type: 'array', items: { $ref: '#/components/schemas/Tag' } } } } } },
+          },
+        },
+      },
+    },
   },
-  // No global `security` block: none of the endpoints documented so far
-  // require auth. Protected event/tag endpoints will set
-  // `security: [{ bearerAuth: [] }]` on themselves once added.
+
 };
