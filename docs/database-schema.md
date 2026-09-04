@@ -28,6 +28,7 @@ users ──< events ──< event_tags >── tags
 | `title`       | VARCHAR(150)               | NOT NULL                             |
 | `description` | TEXT                       | NULL                                 |
 | `starts_at`   | DATETIME                   | NOT NULL (UTC)                       |
+| `ends_at`     | DATETIME                   | NOT NULL (UTC), must be after `starts_at` |
 | `location`    | VARCHAR(255)               | NOT NULL                             |
 | `visibility`  | ENUM('public', 'private')  | NOT NULL, default `'public'`         |
 | `created_at`  | DATETIME                   | NOT NULL, default now (UTC)          |

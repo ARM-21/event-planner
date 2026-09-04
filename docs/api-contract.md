@@ -52,6 +52,7 @@ Query params (all optional):
 | `tag`        | string                | —       | filter to events tagged with this name  |
 | `visibility` | `public`\|`private`   | —       | private only honored for the requester's own events |
 | `from`       | ISO date              | —       | `starts_at >= from`                     |
+| `status`     | `upcoming`\|`past`    | —       | compared against the server's clock, not `from` |
 | `sort`       | `starts_at`\|`-starts_at` | `starts_at` | `-` prefix = descending           |
 
 Unauthenticated or authenticated-but-not-owner requests are implicitly
@@ -67,6 +68,7 @@ Response `200`:
       "title": "Launch party",
       "description": "...",
       "startsAt": "2026-10-01T18:00:00.000Z",
+      "endsAt": "2026-10-01T20:00:00.000Z",
       "location": "Kathmandu",
       "visibility": "public",
       "creatorId": 1,
@@ -87,6 +89,7 @@ Request:
   "title": "Launch party",
   "description": "optional",
   "startsAt": "2026-10-01T18:00:00.000Z",
+  "endsAt": "2026-10-01T20:00:00.000Z",
   "location": "Kathmandu",
   "visibility": "public",
   "tags": ["launch", "party"]
@@ -94,11 +97,15 @@ Request:
 ```
 
 `tags` is a list of tag names; unknown names are created. `creatorId` comes
-from the JWT, never the body. Response `201`: the created event (same shape
-as list items).
+from the JWT, never the body. `startsAt` must be at least 24 hours from the
+time of the request (a business rule, not just "in the future") — this is
+re-checked on `PUT` too, but only when `startsAt` is actually part of that
+request. `endsAt` must be at least 15 minutes after `startsAt`. Response
+`201`: the created event (same shape as list items).
 
-Errors: `400` validation (empty title, `startsAt` not parseable/not in the
-future, etc.), `401` no/invalid token.
+Errors: `400` validation (empty title, `startsAt` not parseable/less than 24h
+out, `endsAt` less than 15 minutes after `startsAt`, etc.), `401` no/invalid
+token.
 
 ### `GET /api/events/:id`
 
