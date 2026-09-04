@@ -1,0 +1,219 @@
+import { useEffect, useState } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
+import { Controller, useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { ApiError } from '../api/client';
+import { createEvent } from '../api/events/event-creator';
+import { updateEvent } from '../api/events/event-updater';
+import type { EventInput } from '../api/events/types';
+import { useAuth } from '../contexts/auth';
+import { useEvent } from '../query/events/use-event';
+import { useTags } from '../query/tags/use-tags';
+import { eventFormSchema, type EventFormValues } from '../lib/schemas';
+import { Button, Card, Field, Input, Select, Textarea } from '../components/ui';
+import { TagInput } from '../components/TagInput';
+
+function toDatetimeLocal(iso: string): string {
+  const date = new Date(iso);
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
+function arraysEqual(a: string[], b: string[]): boolean {
+  return a.length === b.length && a.every((value, index) => value === b[index]);
+}
+
+const emptyDefaults: EventFormValues = {
+  title: '',
+  description: '',
+  startsAt: '',
+  location: '',
+  visibility: 'public',
+  tags: [],
+};
+
+export default function EventFormPage() {
+  const { id } = useParams();
+  const isEdit = Boolean(id);
+  const eventId = id ? Number(id) : undefined;
+  const { token, user } = useAuth();
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
+
+  const [originalTags, setOriginalTags] = useState<string[]>([]);
+  const [forbidden, setForbidden] = useState(false);
+
+  const eventQuery = useEvent(eventId, token);
+  const tagsQuery = useTags();
+  const tagSuggestions = tagsQuery.data?.data.map((t) => t.name) ?? [];
+
+  const {
+    control,
+    register,
+    handleSubmit,
+    reset,
+    setError,
+    formState: { errors, dirtyFields },
+  } = useForm<EventFormValues>({ resolver: zodResolver(eventFormSchema), defaultValues: emptyDefaults });
+
+  useEffect(() => {
+    if (!eventQuery.data) return;
+    const event = eventQuery.data;
+    if (event.creatorId !== user?.id) {
+      setForbidden(true);
+      return;
+    }
+    setOriginalTags(event.tags);
+    reset({
+      title: event.title,
+      description: event.description ?? '',
+      startsAt: toDatetimeLocal(event.startsAt),
+      location: event.location,
+      visibility: event.visibility,
+      tags: event.tags,
+    });
+  }, [eventQuery.data, user?.id, reset]);
+
+  const createMutation = useMutation({
+    mutationFn: (data: EventInput) => createEvent(data, token as string),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['events'] });
+      queryClient.invalidateQueries({ queryKey: ['tags'] });
+      navigate('/events');
+    },
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: (data: Partial<EventInput>) => updateEvent(eventId as number, data, token as string),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['events'] });
+      queryClient.invalidateQueries({ queryKey: ['tags'] });
+      navigate('/events');
+    },
+  });
+
+  async function onSubmit(values: EventFormValues) {
+    if (!token) return;
+    try {
+      if (isEdit && eventId) {
+        // Only send fields that actually changed — startsAt must be in the
+        // future on write, so resubmitting an unchanged past date would
+        // otherwise fail validation on an edit that never touched it.
+        const payload: Partial<EventInput> = {};
+        if (dirtyFields.title) payload.title = values.title;
+        if (dirtyFields.description) payload.description = values.description || undefined;
+        if (dirtyFields.location) payload.location = values.location;
+        if (dirtyFields.visibility) payload.visibility = values.visibility;
+        if (dirtyFields.startsAt) payload.startsAt = new Date(values.startsAt).toISOString();
+        if (!arraysEqual(values.tags, originalTags)) payload.tags = values.tags;
+
+        if (Object.keys(payload).length > 0) {
+          await updateMutation.mutateAsync(payload);
+        } else {
+          navigate('/events');
+        }
+      } else {
+        await createMutation.mutateAsync({
+          title: values.title,
+          description: values.description || undefined,
+          startsAt: new Date(values.startsAt).toISOString(),
+          location: values.location,
+          visibility: values.visibility,
+          tags: values.tags,
+        });
+      }
+    } catch (err) {
+      if (err instanceof ApiError && err.details && err.details.length > 0) {
+        for (const detail of err.details) {
+          setError(detail.field as keyof EventFormValues, { message: detail.message });
+        }
+      } else {
+        setError('root', { message: err instanceof ApiError ? err.message : 'Something went wrong. Please try again.' });
+      }
+    }
+  }
+
+  if (isEdit && eventQuery.isLoading) {
+    return <p className="p-8 text-gray-500">Loading…</p>;
+  }
+
+  if (forbidden) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-gray-50 px-4">
+        <Card className="w-full max-w-sm text-center">
+          <p className="text-gray-700">You don&apos;t have permission to edit this event.</p>
+          <Button className="mt-4" onClick={() => navigate('/events')}>
+            Back to events
+          </Button>
+        </Card>
+      </div>
+    );
+  }
+
+  if (isEdit && eventQuery.isError) {
+    const message = eventQuery.error instanceof ApiError ? eventQuery.error.message : 'Failed to load event.';
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-gray-50 px-4">
+        <Card className="w-full max-w-sm text-center">
+          <p className="text-gray-700">{message}</p>
+          <Button className="mt-4" onClick={() => navigate('/events')}>
+            Back to events
+          </Button>
+        </Card>
+      </div>
+    );
+  }
+
+  const submitting = createMutation.isPending || updateMutation.isPending;
+
+  return (
+    <div className="flex min-h-screen items-center justify-center bg-gray-50 px-4 py-10">
+      <Card className="w-full max-w-lg">
+        <h1 className="mb-6 text-xl font-semibold text-gray-900">{isEdit ? 'Edit event' : 'Create event'}</h1>
+        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4" noValidate>
+          <Field label="Title" htmlFor="title" error={errors.title?.message}>
+            <Input id="title" {...register('title')} />
+          </Field>
+          <Field label="Description" htmlFor="description" error={errors.description?.message}>
+            <Textarea id="description" rows={3} {...register('description')} />
+          </Field>
+          <Field label="Starts at" htmlFor="startsAt" error={errors.startsAt?.message}>
+            <Input id="startsAt" type="datetime-local" {...register('startsAt')} />
+          </Field>
+          <Field label="Location" htmlFor="location" error={errors.location?.message}>
+            <Input id="location" {...register('location')} />
+          </Field>
+          <Field label="Visibility" htmlFor="visibility" error={errors.visibility?.message}>
+            <Select id="visibility" {...register('visibility')}>
+              <option value="public">Public</option>
+              <option value="private">Private</option>
+            </Select>
+          </Field>
+          <Field label="Tags" htmlFor="tags" error={errors.tags?.message}>
+            <Controller
+              control={control}
+              name="tags"
+              render={({ field }) => (
+                <TagInput id="tags" value={field.value} onChange={field.onChange} suggestions={tagSuggestions} />
+              )}
+            />
+          </Field>
+          {errors.root && (
+            <p role="alert" className="text-sm text-red-600">
+              {errors.root.message}
+            </p>
+          )}
+          <div className="flex gap-3">
+            <Button type="submit" disabled={submitting}>
+              {submitting ? 'Saving…' : isEdit ? 'Save changes' : 'Create event'}
+            </Button>
+            <Button type="button" variant="secondary" onClick={() => navigate('/events')}>
+              Cancel
+            </Button>
+          </div>
+        </form>
+      </Card>
+    </div>
+  );
+}

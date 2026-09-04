@@ -1,77 +1,61 @@
-import { useState, type FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { ApiError } from '../lib/api';
-import { useAuth } from '../lib/auth';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { useMutation } from '@tanstack/react-query';
+import { register as registerRequest } from '../api/auth/register';
+import { ApiError } from '../api/client';
+import { useAuth } from '../contexts/auth';
+import { registerSchema, type RegisterFormValues } from '../lib/schemas';
 import { Button, Card, Field, Input } from '../components/ui';
 
 export default function RegisterPage() {
-  const { register } = useAuth();
+  const { setSession } = useAuth();
   const navigate = useNavigate();
-  const [name, setName] = useState('');
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [error, setError] = useState<string | null>(null);
-  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
-  const [submitting, setSubmitting] = useState(false);
+  const {
+    register,
+    handleSubmit,
+    setError,
+    formState: { errors },
+  } = useForm<RegisterFormValues>({ resolver: zodResolver(registerSchema) });
 
-  async function handleSubmit(event: FormEvent) {
-    event.preventDefault();
-    setError(null);
-    setFieldErrors({});
-    setSubmitting(true);
-    try {
-      await register(name, email, password);
+  const registerMutation = useMutation({
+    mutationFn: (values: RegisterFormValues) => registerRequest(values.name, values.email, values.password),
+    onSuccess: (data) => {
+      setSession(data);
       navigate('/events');
-    } catch (err) {
-      if (err instanceof ApiError) {
-        setError(err.message);
-        if (err.details) {
-          setFieldErrors(Object.fromEntries(err.details.map((detail) => [detail.field, detail.message])));
+    },
+    onError: (err) => {
+      if (err instanceof ApiError && err.details && err.details.length > 0) {
+        for (const detail of err.details) {
+          setError(detail.field as keyof RegisterFormValues, { message: detail.message });
         }
       } else {
-        setError('Something went wrong. Please try again.');
+        setError('root', { message: err instanceof ApiError ? err.message : 'Something went wrong. Please try again.' });
       }
-    } finally {
-      setSubmitting(false);
-    }
-  }
+    },
+  });
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-gray-50 px-4">
       <Card className="w-full max-w-sm">
         <h1 className="mb-6 text-xl font-semibold text-gray-900">Create an account</h1>
-        <form onSubmit={handleSubmit} className="space-y-4" noValidate>
-          <Field label="Name" htmlFor="name" error={fieldErrors.name}>
-            <Input id="name" autoComplete="name" required value={name} onChange={(event) => setName(event.target.value)} />
+        <form onSubmit={handleSubmit((values) => registerMutation.mutate(values))} className="space-y-4" noValidate>
+          <Field label="Name" htmlFor="name" error={errors.name?.message}>
+            <Input id="name" autoComplete="name" {...register('name')} />
           </Field>
-          <Field label="Email" htmlFor="email" error={fieldErrors.email}>
-            <Input
-              id="email"
-              type="email"
-              autoComplete="email"
-              required
-              value={email}
-              onChange={(event) => setEmail(event.target.value)}
-            />
+          <Field label="Email" htmlFor="email" error={errors.email?.message}>
+            <Input id="email" type="email" autoComplete="email" {...register('email')} />
           </Field>
-          <Field label="Password" htmlFor="password" error={fieldErrors.password}>
-            <Input
-              id="password"
-              type="password"
-              autoComplete="new-password"
-              required
-              minLength={8}
-              value={password}
-              onChange={(event) => setPassword(event.target.value)}
-            />
+          <Field label="Password" htmlFor="password" error={errors.password?.message}>
+            <Input id="password" type="password" autoComplete="new-password" {...register('password')} />
           </Field>
-          {error && Object.keys(fieldErrors).length === 0 && (
+          {errors.root && (
             <p role="alert" className="text-sm text-red-600">
-              {error}
+              {errors.root.message}
             </p>
           )}
-          <Button type="submit" className="w-full" disabled={submitting}>
-            {submitting ? 'Creating account…' : 'Create account'}
+          <Button type="submit" className="w-full" disabled={registerMutation.isPending}>
+            {registerMutation.isPending ? 'Creating account…' : 'Create account'}
           </Button>
         </form>
         <p className="mt-4 text-center text-sm text-gray-600">
