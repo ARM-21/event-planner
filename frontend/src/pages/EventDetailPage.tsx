@@ -1,8 +1,11 @@
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, Calendar, Clock, Globe, Lock, MapPin, Pencil, Trash2 } from 'lucide-react';
+import { ArrowLeft, Calendar, Check, Clock, Globe, HelpCircle, Lock, MapPin, Pencil, Trash2, X } from 'lucide-react';
 import { ApiError } from '../api/client';
+import type { RsvpStatus } from '../api/events/types';
 import { deleteEvent } from '../api/events/event-deletor';
+import { clearEventRsvp } from '../api/events/event-rsvp-clearer';
+import { setEventRsvp } from '../api/events/event-rsvp-setter';
 import { useAuth } from '../contexts/auth';
 import { useEvent } from '../query/events/use-event';
 import { formatEventRange } from '../lib/formatEventRange';
@@ -30,6 +33,45 @@ export default function EventDetailPage() {
   function handleDelete() {
     if (!window.confirm('Delete this event? This cannot be undone.')) return;
     deleteMutation.mutate();
+  }
+
+  const setRsvpMutation = useMutation({
+    mutationFn: (status: RsvpStatus) => setEventRsvp(eventId as number, status, token as string),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['events', eventId] }),
+  });
+
+  const clearRsvpMutation = useMutation({
+    mutationFn: () => clearEventRsvp(eventId as number, token as string),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['events', eventId] }),
+  });
+
+  // Clicking the already-selected option clears it back to "no response",
+  // same toggle pattern as the visibility/tag filter pills on EventsPage.
+  function handleRsvp(status: RsvpStatus, currentStatus: RsvpStatus | null | undefined) {
+    if (currentStatus === status) {
+      clearRsvpMutation.mutate();
+    } else {
+      setRsvpMutation.mutate(status);
+    }
+  }
+
+  // Hand-styled rather than the shared `Button` component: three mutually
+  // exclusive states read more like the filter pills on EventsPage than a
+  // primary/secondary/danger action, and "maybe" has no natural Button
+  // variant to reuse — plus overriding a variant's color via an appended
+  // className isn't reliable (Tailwind's compiled class order, not the
+  // className string's order, decides which utility wins; see the Select
+  // width fix in AppShell/EventsPage for the same pitfall).
+  const rsvpButtonBaseClass =
+    'inline-flex items-center gap-1.5 rounded-md px-4 py-2 text-sm font-medium transition disabled:cursor-not-allowed disabled:opacity-50';
+  const rsvpButtonInactiveClass = 'bg-gray-100 text-gray-700 hover:bg-gray-200';
+  const rsvpActiveClassByStatus: Record<RsvpStatus, string> = {
+    going: 'bg-indigo-600 text-white',
+    maybe: 'bg-amber-500 text-white',
+    not_going: 'bg-red-600 text-white',
+  };
+  function rsvpButtonClass(status: RsvpStatus, myStatus: RsvpStatus | null | undefined): string {
+    return `${rsvpButtonBaseClass} ${myStatus === status ? rsvpActiveClassByStatus[status] : rsvpButtonInactiveClass}`;
   }
 
   if (eventQuery.isLoading) {
@@ -123,6 +165,43 @@ export default function EventDetailPage() {
                 )}
               </div>
             </div>
+          </div>
+
+          <div className="mt-6 flex flex-wrap items-center justify-between gap-3 border-t border-gray-200 pt-6">
+            <p className="text-sm text-gray-600">
+              <span className="font-medium text-gray-900">{event.rsvp?.goingCount ?? 0}</span> going
+            </p>
+            {user && !isOwner && (
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => handleRsvp('going', event.rsvp?.myStatus)}
+                  disabled={setRsvpMutation.isPending || clearRsvpMutation.isPending}
+                  className={rsvpButtonClass('going', event.rsvp?.myStatus)}
+                >
+                  <Check className="h-4 w-4" aria-hidden="true" />
+                  I&apos;m going
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleRsvp('maybe', event.rsvp?.myStatus)}
+                  disabled={setRsvpMutation.isPending || clearRsvpMutation.isPending}
+                  className={rsvpButtonClass('maybe', event.rsvp?.myStatus)}
+                >
+                  <HelpCircle className="h-4 w-4" aria-hidden="true" />
+                  Maybe
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleRsvp('not_going', event.rsvp?.myStatus)}
+                  disabled={setRsvpMutation.isPending || clearRsvpMutation.isPending}
+                  className={rsvpButtonClass('not_going', event.rsvp?.myStatus)}
+                >
+                  <X className="h-4 w-4" aria-hidden="true" />
+                  Can&apos;t go
+                </button>
+              </div>
+            )}
           </div>
 
           {event.description && (

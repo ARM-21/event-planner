@@ -133,8 +133,18 @@ token.
 
 ### `GET /api/events/:id`
 
-Response `200`: single event. `404` if it doesn't exist, or exists but is
-private and the requester isn't the creator.
+Response `200`: single event, plus an `rsvp` field not present on list
+items:
+```json
+{ "id": 10, "title": "...", "...": "...", "rsvp": { "goingCount": 3, "myStatus": "going" } }
+```
+`myStatus` is `"going"`, `"maybe"`, `"not_going"`, or `null` (anonymous
+caller, or no RSVP recorded yet — those are the same "no answer" state).
+`goingCount` only counts `going` rows (a `maybe` doesn't count toward it),
+and is public regardless of who's asking.
+
+`404` if the event doesn't exist, or exists but is private and the
+requester isn't the creator.
 
 ### `PUT /api/events/:id` (auth, creator only)
 
@@ -150,6 +160,27 @@ from a nonexistent one by getting `403` instead of `404`).
 ### `DELETE /api/events/:id` (auth, creator only)
 
 Response `204` no body. Errors: `401`, `403`, `404` — same rules as `PUT`.
+
+### `PUT /api/events/:id/rsvp` (auth required)
+
+Request: `{ "status": "going" | "maybe" | "not_going" }`. Upsert — calling
+this again just changes the caller's own existing answer, and any
+authenticated user may RSVP to any event they can already `GET` (including
+their own, though the frontend doesn't surface the control to the event's
+creator). Response `200`: `{ "goingCount": 3, "myStatus": "going" }`.
+
+Errors: `400` validation (status isn't one of the three values), `401`
+no/invalid token, `404` event doesn't exist or is private and hidden from
+this requester — same existence-hiding rule as `GET /api/events/:id`, so
+this can't be used to probe for a private event's existence either.
+
+### `DELETE /api/events/:id/rsvp` (auth required)
+
+Clears the caller's own RSVP entirely, back to "no response" — distinct
+from setting `status` to `"not_going"`, which is still a recorded answer.
+No-op (still `204`) if the caller had no RSVP recorded.
+
+Response `204` no body. Errors: `401`, `404` — same rules as `PUT .../rsvp`.
 
 ## Tags
 

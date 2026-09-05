@@ -1,3 +1,10 @@
+export type RsvpStatus = 'going' | 'maybe' | 'not_going';
+
+export interface RsvpSummary {
+  goingCount: number;
+  myStatus: RsvpStatus | null;
+}
+
 export interface EventItem {
   id: number;
   title: string;
@@ -10,6 +17,9 @@ export interface EventItem {
   tags: string[];
   createdAt: string;
   updatedAt: string;
+  // Only present on a single-event fetch (`GET /events/:id`) — the list
+  // endpoint doesn't compute this per row, so it's absent on list items.
+  rsvp?: RsvpSummary;
 }
 
 export interface Pagination {

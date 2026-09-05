@@ -62,6 +62,10 @@ export const updateEventSchema = z
     { message: MIN_DURATION_MESSAGE, path: ['endsAt'] },
   );
 
+export const rsvpSchema = z.object({
+  status: z.enum(['going', 'maybe', 'not_going']),
+});
+
 export const listEventsQuerySchema = z.object({
   page: z.coerce.number().int().min(1).optional().default(1),
   limit: z.coerce.number().int().min(1).max(100).optional().default(20),

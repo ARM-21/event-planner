@@ -60,6 +60,39 @@ export async function fetchTagsByEventIds(eventIds: number[]): Promise<Map<numbe
   return map;
 }
 
+export type RsvpStatus = 'going' | 'maybe' | 'not_going';
+
+interface EventRsvpRow {
+  event_id: number;
+  user_id: number;
+  status: RsvpStatus;
+}
+
+export interface RsvpSummary {
+  goingCount: number;
+  myStatus: RsvpStatus | null;
+}
+
+// One event's RSVP summary: how many people are going, and (if a caller is
+// identified) their own status. `myStatus` is `null` for an anonymous
+// caller or one who hasn't RSVP'd yet — those are the same "no answer"
+// state from the API's point of view.
+export async function fetchRsvpSummary(eventId: number, userId: number | undefined): Promise<RsvpSummary> {
+  const countRow = await db<EventRsvpRow>('event_rsvps')
+    .where({ event_id: eventId, status: 'going' })
+    .count<{ count: string }>({ count: '*' })
+    .first();
+  const goingCount = Number(countRow?.count ?? 0);
+
+  let myStatus: RsvpSummary['myStatus'] = null;
+  if (userId) {
+    const row = await db<EventRsvpRow>('event_rsvps').where({ event_id: eventId, user_id: userId }).first();
+    myStatus = row?.status ?? null;
+  }
+
+  return { goingCount, myStatus };
+}
+
 // Resolves tag names to ids, creating any that don't exist yet. Runs inside
 // the caller's transaction so a partial insert can't leave orphan tags.
 export async function upsertTagIds(trx: Knex.Transaction, names: string[]): Promise<number[]> {

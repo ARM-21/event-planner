@@ -13,8 +13,8 @@ import { db } from '../../db/knex';
 import { requireAuth, optionalAuth } from '../../middleware/auth';
 import { badRequest, forbidden, notFound } from '../../utils/errors';
 import { zodIssuesToDetails } from '../../utils/validation';
-import { createEventSchema, updateEventSchema, listEventsQuerySchema, MIN_DURATION_MS } from './events.schemas';
-import { type EventRow, toPublicEvent, fetchTagsByEventIds, upsertTagIds } from './events.service';
+import { createEventSchema, updateEventSchema, listEventsQuerySchema, rsvpSchema, MIN_DURATION_MS } from './events.schemas';
+import { type EventRow, toPublicEvent, fetchTagsByEventIds, fetchRsvpSummary, upsertTagIds } from './events.service';
 
 const router = Router();
 
@@ -44,6 +44,14 @@ function parseEventId(raw: unknown): number | null {
 function ownershipError(existing: Pick<EventRow, 'creator_id' | 'visibility'>, userId: number | undefined) {
   if (existing.creator_id === userId) return null;
   return existing.visibility === 'private' ? notFound('Event not found') : forbidden();
+}
+
+// A private event doesn't exist as far as anyone but its creator is
+// concerned — used by every route that just needs read access to an
+// event (viewing it, or RSVPing to it), as opposed to `ownershipError`
+// above which additionally distinguishes "can view" from "can edit".
+function isHiddenFromViewer(existing: Pick<EventRow, 'creator_id' | 'visibility'>, userId: number | undefined): boolean {
+  return existing.visibility === 'private' && existing.creator_id !== userId;
 }
 
 /**
@@ -165,12 +173,80 @@ router.get('/:id', optionalAuth, async (req, res, next) => {
   }
   try {
     const row = await db<EventRow>('events').where({ id }).first();
-    if (!row || (row.visibility === 'private' && row.creator_id !== req.userId)) {
+    if (!row || isHiddenFromViewer(row, req.userId)) {
       next(notFound('Event not found'));
       return;
     }
     const tagsByEvent = await fetchTagsByEventIds([row.id]);
-    res.json(toPublicEvent(row, tagsByEvent.get(row.id) ?? []));
+    const rsvp = await fetchRsvpSummary(row.id, req.userId);
+    res.json({ ...toPublicEvent(row, tagsByEvent.get(row.id) ?? []), rsvp });
+  } catch (err) {
+    next(err);
+  }
+});
+
+/**
+ * PUT /api/events/:id/rsvp (login required)
+ *
+ * Sets the caller's own RSVP status for an event (upsert — calling this
+ * again just changes the existing answer). Anyone who can view the event
+ * can RSVP to it, not just people it was somehow "shared" with; the only
+ * gate is the same visibility rule `GET /:id` already applies, so this
+ * can't be used to probe for the existence of a private event either.
+ */
+router.put('/:id/rsvp', requireAuth, async (req, res, next) => {
+  const id = parseEventId(req.params.id);
+  if (id === null) {
+    next(notFound('Event not found'));
+    return;
+  }
+  const parsed = rsvpSchema.safeParse(req.body);
+  if (!parsed.success) {
+    next(badRequest('Validation failed', zodIssuesToDetails(parsed.error)));
+    return;
+  }
+
+  try {
+    const existing = await db<EventRow>('events').where({ id }).first();
+    if (!existing || isHiddenFromViewer(existing, req.userId)) {
+      next(notFound('Event not found'));
+      return;
+    }
+
+    await db('event_rsvps')
+      .insert({ event_id: id, user_id: req.userId, status: parsed.data.status })
+      .onConflict(['event_id', 'user_id'])
+      .merge(['status']);
+
+    const rsvp = await fetchRsvpSummary(id, req.userId);
+    res.json(rsvp);
+  } catch (err) {
+    next(err);
+  }
+});
+
+/**
+ * DELETE /api/events/:id/rsvp (login required)
+ *
+ * Clears the caller's own RSVP entirely, back to "no response" — distinct
+ * from setting status to "not_going", which is still an answer.
+ */
+router.delete('/:id/rsvp', requireAuth, async (req, res, next) => {
+  const id = parseEventId(req.params.id);
+  if (id === null) {
+    next(notFound('Event not found'));
+    return;
+  }
+
+  try {
+    const existing = await db<EventRow>('events').where({ id }).first();
+    if (!existing || isHiddenFromViewer(existing, req.userId)) {
+      next(notFound('Event not found'));
+      return;
+    }
+
+    await db('event_rsvps').where({ event_id: id, user_id: req.userId }).delete();
+    res.status(204).send();
   } catch (err) {
     next(err);
   }

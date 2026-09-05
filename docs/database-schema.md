@@ -1,8 +1,9 @@
 # Database schema
 
-Here is the schema diagram of the three tables and their relationships:
+Here is the schema diagram of the tables and their relationships:
 ```
 users ──< events ──< event_tags >── tags
+users >── event_rsvps ──< events   (one row per user per event)
 ```
 
 ---
@@ -67,6 +68,25 @@ Indexes:
 | `(tag_id, event_id)`             | Reverse lookup: all events carrying a tag     |
 
 
+## event_rsvps
+
+| Column       | Type                          | Constraints                          |
+| ------------ | ----------------------------- | ------------------------------------- |
+| `event_id`   | BIGINT UNSIGNED               | NOT NULL, FK → `events.id`, CASCADE  |
+| `user_id`    | BIGINT UNSIGNED               | NOT NULL, FK → `users.id`, CASCADE   |
+| `status`     | ENUM('going', 'maybe', 'not_going') | NOT NULL                       |
+| `created_at` | DATETIME                      | NOT NULL, default now (UTC)          |
+| `updated_at` | DATETIME                      | NOT NULL, default now (UTC), auto-updated |
+
+| Index                              | Purpose                                       |
+| ----------------------------------- | ---------------------------------------------- |
+| PRIMARY KEY `(event_id, user_id)`  | One RSVP per user per event; also the upsert target and what makes "going count for this event" a covered lookup |
+
+No separate "no response" state is stored — a user with no row for an
+event simply hasn't answered, which is different from having answered
+`not_going`. Clearing an RSVP (`DELETE /api/events/:id/rsvp`) deletes the
+row entirely rather than storing a third status value.
+
 ## email_verifications
 
 | Column        | Type            | Constraints                          |
@@ -88,6 +108,7 @@ stored, same reasoning as `users.password_hash`.
 | -------------------- | ------------ | --------------------------------------- |
 | users → events      | one-to-many  | `events.creator_id` FK                 |
 | events ↔ tags       | many-to-many | `event_tags` join table                |
+| users ↔ events (RSVP) | many-to-many | `event_rsvps` join table, one row per user per event |
 
 ## `created_at` / `updated_at` semantics
 

@@ -1,13 +1,21 @@
 import { useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
-import { Calendar, CalendarDays, LogOut, Menu, X } from 'lucide-react';
+import { CalendarDays, LogOut, Menu, X } from 'lucide-react';
 import { useAuth } from '../contexts/auth';
 
 function Logo() {
   return (
     <Link to="/events" className="flex items-center gap-2 text-indigo-700">
-      <Calendar className="h-6 w-6" aria-hidden="true" />
-      <span className="text-lg font-semibold">Evently</span>
+      <img
+        src="evently-logo.svg"
+        alt="Evently logo"
+        className="h-6 w-6 shrink-0"
+        width={24}
+        height={24}
+      />
+      <span className="sr-only">Evently</span>
+      <span className="hidden text-lg font-semibold sm:inline">Evently</span>
+      <span className="inline text-lg font-semibold sm:hidden">E</span>
     </Link>
   );
 }
