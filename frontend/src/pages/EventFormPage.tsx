@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import { Controller, useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { ArrowLeft } from 'lucide-react';
 import { ApiError } from '../api/client';
 import { createEvent } from '../api/events/event-creator';
 import { updateEvent } from '../api/events/event-updater';
@@ -12,6 +13,7 @@ import { useEvent } from '../query/events/use-event';
 import { useTags } from '../query/tags/use-tags';
 import { createEventFormSchema, eventFormSchema, MIN_LEAD_TIME_MS, type EventFormValues } from '../lib/schemas';
 import { Button, Card, Field, Input, Select, Textarea } from '../components/ui';
+import { AppShell } from '../components/AppShell';
 import { TagInput } from '../components/TagInput';
 
 function toDatetimeLocal(iso: string): string {
@@ -150,88 +152,104 @@ export default function EventFormPage() {
   }
 
   if (isEdit && eventQuery.isLoading) {
-    return <p className="p-8 text-gray-500">Loading…</p>;
+    return (
+      <AppShell>
+        <p className="text-gray-500">Loading…</p>
+      </AppShell>
+    );
   }
 
   if (forbidden) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-gray-50 px-4">
-        <Card className="w-full max-w-sm text-center">
+      <AppShell>
+        <Card className="mx-auto max-w-sm text-center">
           <p className="text-gray-700">You don&apos;t have permission to edit this event.</p>
           <Button className="mt-4" onClick={() => navigate('/events')}>
             Back to events
           </Button>
         </Card>
-      </div>
+      </AppShell>
     );
   }
 
   if (isEdit && eventQuery.isError) {
     const message = eventQuery.error instanceof ApiError ? eventQuery.error.message : 'Failed to load event.';
     return (
-      <div className="flex min-h-screen items-center justify-center bg-gray-50 px-4">
-        <Card className="w-full max-w-sm text-center">
+      <AppShell>
+        <Card className="mx-auto max-w-sm text-center">
           <p className="text-gray-700">{message}</p>
           <Button className="mt-4" onClick={() => navigate('/events')}>
             Back to events
           </Button>
         </Card>
-      </div>
+      </AppShell>
     );
   }
 
   const submitting = createMutation.isPending || updateMutation.isPending;
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-gray-50 px-4 py-10">
-      <Card className="w-full max-w-lg">
-        <h1 className="mb-6 text-xl font-semibold text-gray-900">{isEdit ? 'Edit event' : 'Create event'}</h1>
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4" noValidate>
-          <Field label="Title" htmlFor="title" error={errors.title?.message}>
-            <Input id="title" {...register('title')} />
-          </Field>
-          <Field label="Description" htmlFor="description" error={errors.description?.message}>
-            <Textarea id="description" rows={3} {...register('description')} />
-          </Field>
-          <Field label="Starts at" htmlFor="startsAt" error={errors.startsAt?.message}>
-            <Input id="startsAt" type="datetime-local" min={minStartsAt} {...register('startsAt')} />
-          </Field>
-          <Field label="Ends at" htmlFor="endsAt" error={errors.endsAt?.message}>
-            <Input id="endsAt" type="datetime-local" min={watchedStartsAt || undefined} {...register('endsAt')} />
-          </Field>
-          <Field label="Location" htmlFor="location" error={errors.location?.message}>
-            <Input id="location" {...register('location')} />
-          </Field>
-          <Field label="Visibility" htmlFor="visibility" error={errors.visibility?.message}>
-            <Select id="visibility" {...register('visibility')}>
-              <option value="public">Public</option>
-              <option value="private">Private</option>
-            </Select>
-          </Field>
-          <Field label="Tags" htmlFor="tags" error={errors.tags?.message}>
-            <Controller
-              control={control}
-              name="tags"
-              render={({ field }) => (
-                <TagInput id="tags" value={field.value} onChange={field.onChange} suggestions={tagSuggestions} />
-              )}
-            />
-          </Field>
-          {errors.root && (
-            <p role="alert" className="text-sm text-red-600">
-              {errors.root.message}
-            </p>
-          )}
-          <div className="flex gap-3">
-            <Button type="submit" disabled={submitting}>
-              {submitting ? 'Saving…' : isEdit ? 'Save changes' : 'Create event'}
-            </Button>
-            <Button type="button" variant="secondary" onClick={() => navigate('/events')}>
-              Cancel
-            </Button>
-          </div>
-        </form>
-      </Card>
-    </div>
+    <AppShell>
+      <div className="mx-auto max-w-2xl space-y-6">
+        <Link
+          to="/events"
+          className="inline-flex items-center gap-1.5 text-sm font-medium text-gray-500 hover:text-gray-700"
+        >
+          <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+          Back to events
+        </Link>
+
+        <Card>
+          <h1 className="mb-6 text-xl font-semibold text-gray-900">{isEdit ? 'Edit event' : 'Create event'}</h1>
+          <form onSubmit={handleSubmit(onSubmit)} className="space-y-4" noValidate>
+            <Field label="Title" htmlFor="title" error={errors.title?.message}>
+              <Input id="title" {...register('title')} />
+            </Field>
+            <Field label="Description" htmlFor="description" error={errors.description?.message}>
+              <Textarea id="description" rows={3} {...register('description')} />
+            </Field>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <Field label="Starts at" htmlFor="startsAt" error={errors.startsAt?.message}>
+                <Input id="startsAt" type="datetime-local" min={minStartsAt} {...register('startsAt')} />
+              </Field>
+              <Field label="Ends at" htmlFor="endsAt" error={errors.endsAt?.message}>
+                <Input id="endsAt" type="datetime-local" min={watchedStartsAt || undefined} {...register('endsAt')} />
+              </Field>
+            </div>
+            <Field label="Location" htmlFor="location" error={errors.location?.message}>
+              <Input id="location" {...register('location')} />
+            </Field>
+            <Field label="Visibility" htmlFor="visibility" error={errors.visibility?.message}>
+              <Select id="visibility" {...register('visibility')}>
+                <option value="public">Public</option>
+                <option value="private">Private</option>
+              </Select>
+            </Field>
+            <Field label="Tags" htmlFor="tags" error={errors.tags?.message}>
+              <Controller
+                control={control}
+                name="tags"
+                render={({ field }) => (
+                  <TagInput id="tags" value={field.value} onChange={field.onChange} suggestions={tagSuggestions} />
+                )}
+              />
+            </Field>
+            {errors.root && (
+              <p role="alert" className="text-sm text-red-600">
+                {errors.root.message}
+              </p>
+            )}
+            <div className="flex gap-3 pt-2">
+              <Button type="submit" disabled={submitting}>
+                {submitting ? 'Saving…' : isEdit ? 'Save changes' : 'Create event'}
+              </Button>
+              <Button type="button" variant="secondary" onClick={() => navigate('/events')}>
+                Cancel
+              </Button>
+            </div>
+          </form>
+        </Card>
+      </div>
+    </AppShell>
   );
 }

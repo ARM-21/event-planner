@@ -1,5 +1,6 @@
 import { useState, type KeyboardEvent } from 'react';
 import { Badge, Input } from './ui';
+import { tagPillClass } from '../lib/tagStyle';
 
 interface TagInputProps {
   id?: string;
@@ -35,7 +36,7 @@ export function TagInput({ id, value, onChange, suggestions = [] }: TagInputProp
       {value.length > 0 && (
         <div className="flex flex-wrap gap-1.5">
           {value.map((tag) => (
-            <Badge key={tag} onRemove={() => onChange(value.filter((t) => t !== tag))}>
+            <Badge key={tag} className={tagPillClass(tag)} onRemove={() => onChange(value.filter((t) => t !== tag))}>
               {tag}
             </Badge>
           ))}

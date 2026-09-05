@@ -1,4 +1,5 @@
-import { forwardRef, type ButtonHTMLAttributes, type InputHTMLAttributes, type ReactNode, type SelectHTMLAttributes, type TextareaHTMLAttributes } from 'react';
+import { forwardRef, useState, type ButtonHTMLAttributes, type InputHTMLAttributes, type ReactNode, type SelectHTMLAttributes, type TextareaHTMLAttributes } from 'react';
+import { AlertCircle, Eye, EyeOff, X } from 'lucide-react';
 
 type ButtonVariant = 'primary' | 'secondary' | 'danger';
 
@@ -34,6 +35,34 @@ export const Input = forwardRef<HTMLInputElement, InputHTMLAttributes<HTMLInputE
   );
 });
 
+// Same as Input, plus a show/hide toggle button — the input's own
+// ref/value/onChange wiring is untouched, so it drops into a
+// react-hook-form `register(...)` exactly like a plain Input would.
+export const PasswordInput = forwardRef<HTMLInputElement, InputHTMLAttributes<HTMLInputElement>>(
+  function PasswordInput({ className = '', ...props }, ref) {
+    const [visible, setVisible] = useState(false);
+    return (
+      <div className="relative">
+        <input
+          ref={ref}
+          type={visible ? 'text' : 'password'}
+          className={`w-full rounded-md border border-gray-300 px-3 py-2 pr-10 text-sm shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 ${className}`}
+          {...props}
+        />
+        <button
+          type="button"
+          tabIndex={-1}
+          onClick={() => setVisible((v) => !v)}
+          className="absolute inset-y-0 right-0 flex items-center pr-3 text-gray-400 hover:text-gray-600"
+          aria-label={visible ? 'Hide password' : 'Show password'}
+        >
+          {visible ? <EyeOff className="h-4 w-4" aria-hidden="true" /> : <Eye className="h-4 w-4" aria-hidden="true" />}
+        </button>
+      </div>
+    );
+  },
+);
+
 export const Select = forwardRef<HTMLSelectElement, SelectHTMLAttributes<HTMLSelectElement>>(function Select(
   { className = '', ...props },
   ref,
@@ -60,18 +89,26 @@ export const Textarea = forwardRef<HTMLTextAreaElement, TextareaHTMLAttributes<H
   );
 });
 
-export function Badge({ children, onRemove }: { children: ReactNode; onRemove?: () => void }) {
+export function Badge({
+  children,
+  onRemove,
+  className = 'bg-indigo-50 text-indigo-700',
+}: {
+  children: ReactNode;
+  onRemove?: () => void;
+  className?: string;
+}) {
   return (
-    <span className="inline-flex items-center gap-1 rounded-full bg-indigo-50 px-2.5 py-0.5 text-xs font-medium text-indigo-700">
+    <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium ${className}`}>
       {children}
       {onRemove && (
         <button
           type="button"
           onClick={onRemove}
-          className="text-indigo-500 hover:text-indigo-700"
+          className="rounded-full p-0.5 hover:bg-black/10"
           aria-label={`Remove tag ${typeof children === 'string' ? children : ''}`}
         >
-          &times;
+          <X className="h-3 w-3" aria-hidden="true" />
         </button>
       )}
     </span>
@@ -100,6 +137,17 @@ export function Field({
           {error}
         </p>
       )}
+    </div>
+  );
+}
+
+// Styled banner for a form-level error (e.g. "Invalid email or password"),
+// as opposed to Field's per-input error text.
+export function ErrorBanner({ children }: { children: ReactNode }) {
+  return (
+    <div role="alert" className="flex items-start gap-2 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">
+      <AlertCircle className="mt-0.5 h-4 w-4 flex-shrink-0" aria-hidden="true" />
+      <span>{children}</span>
     </div>
   );
 }

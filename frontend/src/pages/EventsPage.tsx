@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { Plus, Search, X } from 'lucide-react';
 import { ApiError } from '../api/client';
 import { resendVerification } from '../api/auth/resend-verification';
 import { deleteEvent } from '../api/events/event-deletor';
@@ -9,8 +10,10 @@ import { useAuth } from '../contexts/auth';
 import { useDebounce } from '../hooks/use-debounce';
 import { useEvents } from '../query/events/use-events';
 import { useTags } from '../query/tags/use-tags';
-import { formatEventRange } from '../lib/formatEventRange';
-import { Button, Input, Select } from '../components/ui';
+import { Button, Select } from '../components/ui';
+import { AppShell } from '../components/AppShell';
+import { EventCard } from '../components/EventCard';
+import { Pagination } from '../components/Pagination';
 
 const LIMIT = 10;
 
@@ -22,7 +25,7 @@ interface FiltersFormValues {
 }
 
 export default function EventsPage() {
-  const { user, token, logout } = useAuth();
+  const { user, token } = useAuth();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
 
@@ -61,6 +64,15 @@ export default function EventsPage() {
     setValue('sort', next === 'upcoming' ? 'starts_at' : '-starts_at');
     setPage(1);
   }
+
+  function toggleVisibility(next: 'public' | 'private') {
+    setValue('visibility', visibility === next ? '' : next);
+  }
+
+  function toggleTag(next: string) {
+    setValue('tag', tag === next ? '' : next);
+  }
+
   const tagsQuery = useTags();
 
   const deleteMutation = useMutation({
@@ -91,47 +103,29 @@ export default function EventsPage() {
         : 'Failed to load events.'
       : null;
 
-  return (
-    <div className="min-h-screen bg-gray-50">
-      <header className="border-b border-gray-200 bg-white">
-        <div className="mx-auto flex max-w-5xl items-center justify-between px-4 py-4">
-          <h1 className="text-lg font-semibold text-gray-900">Event Planner</h1>
-          <div className="flex items-center gap-3">
-            {user ? (
-              <>
-                <Button onClick={() => navigate('/events/new')}>New event</Button>
-                <span className="text-sm text-gray-600">{user.name}</span>
-                <Button variant="secondary" onClick={logout}>
-                  Log out
-                </Button>
-              </>
-            ) : (
-              <>
-                <Link to="/login" className="text-sm font-medium text-indigo-600 hover:text-indigo-500">
-                  Log in
-                </Link>
-                <Link to="/register" className="text-sm font-medium text-indigo-600 hover:text-indigo-500">
-                  Sign up
-                </Link>
-              </>
-            )}
-          </div>
-        </div>
-      </header>
+  const noFilterActive = !visibility && !tag;
 
-      <main className="mx-auto max-w-5xl px-4 py-8">
+  return (
+    <AppShell>
+      <div className="space-y-5">
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <h1 className="text-2xl font-bold text-gray-900">Events</h1>
+          {user && (
+            <Button onClick={() => navigate('/events/new')} className="gap-1.5">
+              <Plus className="h-4 w-4" aria-hidden="true" />
+              Create event
+            </Button>
+          )}
+        </div>
+
         {user && !user.emailVerified && (
-          <div className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
             {resendMutation.isSuccess ? (
               <span>Verification email sent — check your inbox (or the backend console in dev).</span>
             ) : (
               <>
                 <span>Please verify your email address.</span>
-                <Button
-                  variant="secondary"
-                  onClick={() => resendMutation.mutate()}
-                  disabled={resendMutation.isPending}
-                >
+                <Button variant="secondary" onClick={() => resendMutation.mutate()} disabled={resendMutation.isPending}>
                   {resendMutation.isPending ? 'Sending…' : 'Resend verification email'}
                 </Button>
               </>
@@ -144,149 +138,146 @@ export default function EventsPage() {
           </div>
         )}
 
-        <div className="mb-4 inline-flex rounded-md border border-gray-200 bg-white p-1">
+        <div className="inline-flex rounded-md border border-gray-200 bg-white p-1">
           <button
             type="button"
             onClick={() => handleStatusChange('upcoming')}
-            className={`rounded px-3 py-1.5 text-sm font-medium transition ${status === 'upcoming' ? 'bg-indigo-600 text-white' : 'text-gray-600 hover:bg-gray-100'
-              }`}
+            className={`rounded px-4 py-1.5 text-sm font-medium transition ${
+              status === 'upcoming' ? 'bg-indigo-600 text-white' : 'text-gray-600 hover:bg-gray-100'
+            }`}
           >
             Upcoming
           </button>
           <button
             type="button"
             onClick={() => handleStatusChange('past')}
-            className={`rounded px-3 py-1.5 text-sm font-medium transition ${status === 'past' ? 'bg-indigo-600 text-white' : 'text-gray-600 hover:bg-gray-100'
-              }`}
+            className={`rounded px-4 py-1.5 text-sm font-medium transition ${
+              status === 'past' ? 'bg-indigo-600 text-white' : 'text-gray-600 hover:bg-gray-100'
+            }`}
           >
             Past
           </button>
         </div>
 
-        <div className="mb-6 flex flex-wrap items-end gap-3">
-          <div className="min-w-[200px]  flex-1">
-            <label htmlFor="search" className="mb-1 block text-sm font-medium text-gray-700">
-              Search
-            </label>
-            <span className="relative flex w-full items-center">
-              <Input id="search" placeholder="Title or location" {...register('search')} />
-              {searchInput && (
-                <span
-                  className="text-sm text-gray-500 absolute right-4 cursor-pointer border rounded-full aspect-square"
-                  onClick={() => setValue('search', '')}
-                >
-                  X
-                </span>
-              )}
-            </span>
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="relative min-w-[220px] flex-1">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" aria-hidden="true" />
+            <input
+              aria-label="Search events"
+              placeholder="Search events…"
+              className="w-full rounded-md border border-gray-300 py-2 pl-9 pr-9 text-sm shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+              {...register('search')}
+            />
+            {searchInput && (
+              <button
+                type="button"
+                aria-label="Clear search"
+                onClick={() => setValue('search', '')}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+              >
+                <X className="h-4 w-4" aria-hidden="true" />
+              </button>
+            )}
+          </div>
 
-          </div>
-          <div>
-            <label htmlFor="tag-filter" className="mb-1 block text-sm font-medium text-gray-700">
-              Tag
-            </label>
-            <Select id="tag-filter" {...register('tag')}>
-              <option value="">All tags</option>
-              {tags.map((t) => (
-                <option key={t.id} value={t.name}>
-                  {t.name}
-                </option>
-              ))}
-            </Select>
-          </div>
-          <div>
-            <label htmlFor="visibility-filter" className="mb-1 block text-sm font-medium text-gray-700">
-              Visibility
-            </label>
-            <Select id="visibility-filter" {...register('visibility')}>
-              <option value="">All</option>
-              <option value="public">Public</option>
-              {token && <option value="private">Private (mine)</option>}
-            </Select>
-          </div>
-          <div>
-            <label htmlFor="sort" className="mb-1 block text-sm font-medium text-gray-700">
-              Sort
-            </label>
-            <Select id="sort" {...register('sort')}>
-              <option value="starts_at">Upcoming first</option>
-              <option value="-starts_at">Latest first</option>
+          <div className="w-40">
+            <Select aria-label="Sort" {...register('sort')}>
+              <option value="starts_at">Upcoming first </option>
+              <option value="-starts_at">Nearest first</option>
             </Select>
           </div>
         </div>
 
+        {/* Scrolls horizontally instead of wrapping — with enough tags this
+            row would otherwise wrap to 2-3 lines and grow the page's height
+            unpredictably depending on window width. */}
+        <div className="flex items-center gap-1.5 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          <button
+            type="button"
+            onClick={() => {
+              setValue('visibility', '');
+              setValue('tag', '');
+            }}
+            className={`shrink-0 rounded-full border px-3 py-1.5 text-sm font-medium transition ${
+              noFilterActive ? 'border-indigo-600 bg-indigo-600 text-white' : 'border-gray-200 text-gray-600 hover:bg-gray-50'
+            }`}
+          >
+            All
+          </button>
+          <button
+            type="button"
+            onClick={() => toggleVisibility('public')}
+            className={`shrink-0 rounded-full border px-3 py-1.5 text-sm font-medium transition ${
+              visibility === 'public' ? 'border-indigo-600 bg-indigo-600 text-white' : 'border-gray-200 text-gray-600 hover:bg-gray-50'
+            }`}
+          >
+            Public
+          </button>
+          {token && (
+            <button
+              type="button"
+              onClick={() => toggleVisibility('private')}
+              className={`shrink-0 rounded-full border px-3 py-1.5 text-sm font-medium transition ${
+                visibility === 'private' ? 'border-indigo-600 bg-indigo-600 text-white' : 'border-gray-200 text-gray-600 hover:bg-gray-50'
+              }`}
+            >
+              Private
+            </button>
+          )}
+          {tags.map((t) => (
+            <button
+              key={t.id}
+              type="button"
+              onClick={() => toggleTag(t.name)}
+              className={`shrink-0 rounded-full border px-3 py-1.5 text-sm font-medium capitalize transition ${
+                tag === t.name ? 'border-indigo-600 bg-indigo-600 text-white' : 'border-gray-200 text-gray-600 hover:bg-gray-50'
+              }`}
+            >
+              {t.name}
+            </button>
+          ))}
+        </div>
+
         {error && (
-          <p role="alert" className="mb-4 text-sm text-red-600">
+          <p role="alert" className="text-sm text-red-600">
             {error}
           </p>
         )}
 
-        {eventsQuery.isLoading ? (
-          <p className="text-gray-500">Loading events…</p>
-        ) : events.length === 0 ? (
-          <p className="text-gray-500">No events found.</p>
-        ) : (
-          <ul className="space-y-4">
-            {events.map((event) => (
-              <li key={event.id} className="rounded-lg border border-gray-200 bg-white p-5 shadow-sm">
-                <div className="flex items-start justify-between gap-4">
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <h2 className="text-base font-semibold text-gray-900">
-                        <Link to={`/events/${event.id}`} className="hover:text-indigo-600 hover:underline">
-                          {event.title}
-                        </Link>
-                      </h2>
-                      {event.visibility === 'private' && (
-                        <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800">
-                          Private
-                        </span>
-                      )}
-                    </div>
-                    <p className="mt-1 text-sm text-gray-600">
-                      {formatEventRange(event.startsAt, event.endsAt)} · {event.location}
-                    </p>
-                    {event.description && <p className="mt-2 text-sm text-gray-700">{event.description}</p>}
-                    {event.tags.length > 0 && (
-                      <div className="mt-3 flex flex-wrap gap-1.5">
-                        {event.tags.map((t) => (
-                          <span key={t} className="rounded-full bg-indigo-50 px-2.5 py-0.5 text-xs font-medium text-indigo-700">
-                            {t}
-                          </span>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                  {user?.id === event.creatorId && (
-                    <div className="flex shrink-0 gap-2">
-                      <Button variant="secondary" onClick={() => navigate(`/events/${event.id}/edit`)}>
-                        Edit
-                      </Button>
-                      <Button variant="danger" onClick={() => handleDelete(event.id)} disabled={deleteMutation.isPending}>
-                        Delete
-                      </Button>
-                    </div>
-                  )}
-                </div>
-              </li>
-            ))}
-          </ul>
-        )}
+        <div>
+          {eventsQuery.isLoading ? (
+            <p className="text-gray-500">Loading events…</p>
+          ) : events.length === 0 ? (
+            <div className="rounded-xl border border-dashed border-gray-300 bg-white py-16 text-center">
+              <p className="text-gray-500">No events found.</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-3">
+              {events.map((event) => (
+                <EventCard
+                  key={event.id}
+                  event={event}
+                  isOwner={user?.id === event.creatorId}
+                  onEdit={() => navigate(`/events/${event.id}/edit`)}
+                  onDelete={() => handleDelete(event.id)}
+                  deleteDisabled={deleteMutation.isPending}
+                />
+              ))}
+            </div>
+          )}
+        </div>
 
-        {pagination && pagination.totalPages > 1 && (
-          <div className="mt-6 flex items-center justify-between">
-            <Button variant="secondary" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>
-              Previous
-            </Button>
-            <span className="text-sm text-gray-600">
-              Page {pagination.page} of {pagination.totalPages}
-            </span>
-            <Button variant="secondary" disabled={page >= pagination.totalPages} onClick={() => setPage((p) => p + 1)}>
-              Next
-            </Button>
+        {pagination && (
+          <div className="flex items-center justify-between">
+            <p className="text-sm text-gray-500">
+              {events.length === 0
+                ? '0 events'
+                : `${(pagination.page - 1) * pagination.limit + 1}–${Math.min(pagination.page * pagination.limit, pagination.total)} of ${pagination.total} events`}
+            </p>
+            <Pagination page={page} totalPages={pagination.totalPages} onChange={setPage} />
           </div>
         )}
-      </main>
-    </div>
+      </div>
+    </AppShell>
   );
 }
