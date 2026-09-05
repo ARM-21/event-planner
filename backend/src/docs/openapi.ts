@@ -1,3 +1,10 @@
+/**
+ * OpenAPI (Swagger) spec for the API, served interactively at /api/docs.
+ * Written by hand as a plain object instead of a YAML file, and kept in
+ * sync manually with the real routes as they're built — see
+ * docs/api-contract.md in the repo root for the full written-out design
+ * this is describing in machine-readable form.
+ */
 
 export const openApiSpec = {
   openapi: '3.0.3',
@@ -139,6 +146,7 @@ export const openApiSpec = {
           },
           '400': { description: 'Validation failed', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
           '409': { description: 'Email already registered', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
+          '429': { description: 'Rate limit exceeded', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
         },
       },
     },
@@ -168,6 +176,7 @@ export const openApiSpec = {
           },
           '400': { description: 'Validation failed', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
           '401': { description: 'Invalid credentials', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
+          '429': { description: 'Rate limit exceeded', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
         },
       },
     },
@@ -185,6 +194,7 @@ export const openApiSpec = {
         responses: {
           '200': { description: 'Verified', content: { 'application/json': { schema: { type: 'object', properties: { verified: { type: 'boolean' } } } } } },
           '400': { description: 'Missing, invalid, or expired token', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
+          '429': { description: 'Rate limit exceeded', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
         },
       },
     },
@@ -196,6 +206,7 @@ export const openApiSpec = {
           '200': { description: 'Sent', content: { 'application/json': { schema: { type: 'object', properties: { message: { type: 'string' } } } } } },
           '409': { description: 'Email already verified', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
           '401': { description: 'No/invalid token', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
+          '429': { description: 'Rate limit exceeded', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
         },
       },
     },

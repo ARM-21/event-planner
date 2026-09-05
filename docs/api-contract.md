@@ -178,4 +178,16 @@ Every non-2xx response body:
 | 403    | authenticated, but not authorized for this action  |
 | 404    | resource doesn't exist (or is hidden from you)     |
 | 409    | conflict with the resource's current state (duplicate email on register, resending a verification email that's already verified) |
+| 429    | rate limit exceeded (300 req/15min per IP overall; 10 req/15min per IP on `/api/auth/*`, not counting successful requests) |
 | 500    | unhandled server error                             |
+
+## Security middleware
+
+- `helmet()` sets standard security headers (HSTS, no-sniff, frameguard,
+  etc.); CSP is disabled since this is a JSON API plus the swagger-ui docs
+  page, which needs inline scripts CSP would otherwise block.
+- CORS is restricted to `CORS_ORIGIN` (comma-separated) / `FRONTEND_URL`,
+  not a wildcard.
+- JSON request bodies are capped at 10kb (`express.json({ limit: '10kb' })`)
+  — there are no file-upload endpoints.
+- Responses are gzip-compressed (`compression()`).

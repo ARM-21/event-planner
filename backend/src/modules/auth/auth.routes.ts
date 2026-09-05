@@ -1,3 +1,13 @@
+/**
+ * Auth routes: sign up, log in, and email verification.
+ *
+ * These are the endpoints that let someone create an account, prove who
+ * they are, and confirm their email address. A successful register or
+ * login hands back a JWT, which the frontend then sends back on every
+ * later request (as an `Authorization: Bearer <token>` header) to say
+ * "this is who I am".
+ */
+
 import { Router } from 'express';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
@@ -32,6 +42,16 @@ function issueToken(userId: number): string {
   return jwt.sign({ sub: userId }, env.jwtSecret, { expiresIn: '7d' });
 }
 
+/**
+ * POST /api/auth/register
+ *
+ * Creates a new account: checks the email isn't already taken, hashes the
+ * password (never stores it as plain text), saves the user, and kicks off
+ * an email-verification link in the background. The account can be used
+ * (logged into) right away — it doesn't have to be verified first.
+ *
+ * Responds with the new user's public details plus a login token.
+ */
 router.post('/register', async (req, res, next) => {
   const parsed = registerSchema.safeParse(req.body);
   if (!parsed.success) {
@@ -61,6 +81,14 @@ router.post('/register', async (req, res, next) => {
   }
 });
 
+/**
+ * POST /api/auth/login
+ *
+ * Checks the email/password against what's stored and, if they match,
+ * hands back a fresh login token. On purpose, a wrong email and a wrong
+ * password give back the exact same error message — that way nobody can
+ * use this endpoint to guess which emails have an account.
+ */
 router.post('/login', async (req, res, next) => {
   const parsed = loginSchema.safeParse(req.body);
   if (!parsed.success) {
@@ -93,8 +121,17 @@ router.post('/login', async (req, res, next) => {
   }
 });
 
-// Not auth-gated: the token itself (delivered only via the emailed link) is
-// the proof of identity here, same as a password-reset link.
+/**
+ * POST /api/auth/verify-email
+ *
+ * Confirms an email address using the one-time token from the link sent
+ * during registration (or a resend). If the token matches a record that
+ * hasn't expired, the account is marked verified and the token is deleted
+ * so it can't be reused.
+ *
+ * Not auth-gated: the token itself (delivered only via the emailed link) is
+ * the proof of identity here, same as a password-reset link.
+ */
 router.post('/verify-email', async (req, res, next) => {
   const token = typeof req.body?.token === 'string' ? req.body.token : '';
   if (!token) {
@@ -125,6 +162,13 @@ router.post('/verify-email', async (req, res, next) => {
   }
 });
 
+/**
+ * POST /api/auth/resend-verification (login required)
+ *
+ * Sends a brand new verification link to the logged-in user's own email
+ * address, replacing any earlier link that hasn't been used yet. Does
+ * nothing (and returns an error) if the account is already verified.
+ */
 router.post('/resend-verification', requireAuth, async (req, res, next) => {
   try {
     const user = await db<UserRow>('users').where({ id: req.userId }).first();

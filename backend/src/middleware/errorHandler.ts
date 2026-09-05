@@ -1,3 +1,11 @@
+/**
+ * Central error handler — the last stop for anything passed to `next(err)`
+ * anywhere in the app. Turns whatever error occurred into one consistent
+ * JSON response shape (`{ error: { message, details? } }`) with the right
+ * HTTP status code, instead of every route having to format its own error
+ * response.
+ */
+
 import type { NextFunction, Request, Response } from 'express';
 import { AppError } from '../utils/errors';
 import { logger } from '../utils/logger';

@@ -1,3 +1,10 @@
+/**
+ * App-wide logger, built with Winston. Every part of the backend should
+ * log through this instead of `console.log`, so output is consistent:
+ * colorized and easy to read during development, structured JSON in
+ * production (so log-collection tools can parse it).
+ */
+
 import winston from 'winston';
 import { env } from '../config/env';
 

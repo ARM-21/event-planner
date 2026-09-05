@@ -1,3 +1,10 @@
+/**
+ * Validation rules for creating/updating/listing events, using zod. Beyond
+ * basic shape checks (required fields, lengths), this also encodes the
+ * business rules an event must follow: it has to be scheduled at least 24
+ * hours out, and it has to run for at least 15 minutes.
+ */
+
 import { z } from 'zod';
 
 const isoDate = z

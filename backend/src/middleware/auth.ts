@@ -1,3 +1,13 @@
+/**
+ * Middleware that figures out who's making a request, based on the JWT
+ * (login token) sent in the `Authorization: Bearer <token>` header.
+ *
+ * There are two flavors: `requireAuth` for routes where being logged in
+ * is mandatory (rejects the request if there's no valid token), and
+ * `optionalAuth` for routes that behave differently depending on whether
+ * someone happens to be logged in, but work fine either way.
+ */
+
 import type { NextFunction, Request, Response } from 'express';
 import jwt from 'jsonwebtoken';
 import { env } from '../config/env';
@@ -11,6 +21,9 @@ declare global {
   }
 }
 
+// Rejects the request with a 401 unless a valid, unexpired login token is
+// present; otherwise records who's calling as `req.userId` for later
+// handlers to use.
 export function requireAuth(req: Request, _res: Response, next: NextFunction): void {
   const header = req.headers.authorization;
   if (!header?.startsWith('Bearer ')) {

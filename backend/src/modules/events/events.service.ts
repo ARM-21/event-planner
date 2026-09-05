@@ -1,3 +1,10 @@
+/**
+ * Shared helpers for working with events that don't belong to any single
+ * route: shaping a raw database row into the JSON the API returns,
+ * looking up which tags belong to which events, and resolving tag names
+ * to ids (creating new tags as needed).
+ */
+
 import type { Knex } from 'knex';
 import { db } from '../../db/knex';
 
@@ -14,6 +21,8 @@ export interface EventRow {
   updated_at: Date | string;
 }
 
+// Converts a raw database row (snake_case columns, e.g. `starts_at`) into
+// the camelCase shape the API actually sends back to clients.
 export function toPublicEvent(row: EventRow, tags: string[]) {
   return {
     id: row.id,
@@ -30,6 +39,9 @@ export function toPublicEvent(row: EventRow, tags: string[]) {
   };
 }
 
+// Looks up the tag names for a batch of events in one query (rather than
+// one query per event) and groups them by event id, avoiding an N+1 query
+// problem when listing many events at once.
 export async function fetchTagsByEventIds(eventIds: number[]): Promise<Map<number, string[]>> {
   const map = new Map<number, string[]>();
   if (eventIds.length === 0) return map;
