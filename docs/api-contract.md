@@ -7,10 +7,54 @@ Base path: `/api`. All request/response bodies are JSON
 
 ## Auth
 
-Bearer JWT. Login/register return a token; every other endpoint that needs
-identity reads it from `Authorization: Bearer <token>`. The token payload is
-`{ sub: userId, iat, exp }` — no role/claims beyond identity, since
-authorization is purely "are you the creator of this event."
+Two JWTs, not one: a short-lived **access token** and a longer-lived
+**refresh token**.
+
+- The access token is what `Authorization: Bearer <token>` carries on
+  every identity-requiring request. Payload: `{ sub: userId, ver, type: 'access', iat, exp }`.
+  Expires in **15 minutes**. Returned in the response body by
+  `register`/`login`/`refresh` — the frontend keeps it in memory/localStorage,
+  same as before.
+- The refresh token is never exposed to JS: it's set as an **httpOnly
+  cookie** (`refresh_token`, `Path=/api/auth`, 30-day `Max-Age`) by
+  `register`/`login`/`refresh`, and read back only from that cookie.
+  Payload: `{ sub: userId, ver, type: 'refresh', iat, exp }`. In production
+  it's also `Secure` + `SameSite=None` (frontend/backend may be on
+  different domains); in dev it's `SameSite=Lax` without `Secure` (plain
+  http, same-site by port).
+- `ver` is the user's `token_version` (see `docs/database-schema.md`) at
+  the time the token was issued. `requireAuth`/`optionalAuth` check
+  `type === 'access'` but *not* `ver` — access tokens are trusted
+  statelessly for their whole (short) 15-minute life. Only
+  `POST /auth/refresh` checks `ver` against the current DB value, which is
+  what makes `POST /auth/logout` (which bumps it) an actual revocation
+  rather than just "the frontend forgot the token".
+- Clients need `credentials: 'include'` (axios: `withCredentials: true`)
+  for the refresh cookie to round-trip at all.
+
+### `POST /api/auth/refresh`
+
+No body, no `Authorization` header — identity comes entirely from the
+`refresh_token` cookie. On success, issues **both** a new access token and
+a rotated refresh cookie (sliding 30-day expiry from the last refresh, not
+a hard cutoff from login) and responds `200 { "token": "<new access token>" }`.
+
+Errors: `401` if the cookie is missing, invalid/expired, the wrong `type`,
+or its `ver` no longer matches the user's current `token_version` (i.e.
+it's been revoked by a logout since it was issued).
+
+### `POST /api/auth/logout`
+
+No body. Not auth-gated by `Authorization` — works even with an already-expired
+access token, since that's exactly when someone still holding a long-lived
+refresh cookie needs logout to actually revoke it. Increments the caller's
+`token_version` (identified from the refresh cookie, if present — ignoring
+its own expiry, so an expired-but-correctly-signed cookie can still be
+attributed and revoked) and clears the cookie. A missing/unreadable cookie
+is a no-op, same shape as `DELETE /events/:id/rsvp`.
+
+Response: `204` no body, always (nothing to reveal either way about whether
+a session existed).
 
 ### `POST /api/auth/register`
 
@@ -77,7 +121,7 @@ Query params (all optional):
 | `visibility` | `public`\|`private`   | —       | private only honored for the requester's own events |
 | `from`       | ISO date              | —       | `starts_at >= from`                     |
 | `status`     | `upcoming`\|`past`    | —       | compared against the server's clock, not `from` |
-| `sort`       | `starts_at`\|`-starts_at` | `starts_at` | `-` prefix = descending           |
+| `sort`       | `starts_at`\|`-starts_at`\|`popularity`\|`-popularity` | `starts_at` | `-` prefix = descending; `popularity` orders by how many `going` RSVPs an event has (see `event_rsvps` in `docs/database-schema.md`) |
 
 Unauthenticated or authenticated-but-not-owner requests are implicitly
 restricted to `visibility = 'public'`; an authenticated user additionally

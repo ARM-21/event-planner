@@ -17,8 +17,18 @@ users >── event_rsvps ──< events   (one row per user per event)
 | `email`         | VARCHAR(255)        | NOT NULL, UNIQUE            |
 | `password_hash` | VARCHAR(255)        | NOT NULL                    |
 | `email_verified_at` | DATETIME        | NULL — set once the emailed link is confirmed |
+| `token_version` | INT UNSIGNED        | NOT NULL, default `0` — see below |
 | `created_at`    | DATETIME            | NOT NULL, default now (UTC) |
 | `updated_at`    | DATETIME            | NOT NULL, default now (UTC), auto-updated |
+
+`token_version` backs refresh-token revocation (see "Auth tokens" in
+`docs/api-contract.md`): every access/refresh JWT embeds the value it was
+issued with, and `POST /auth/logout` increments this column, which
+immediately invalidates every outstanding refresh token for that user
+(checked on every `POST /auth/refresh`). Nothing currently reads or writes
+it besides that one endpoint, but any other action that should force
+re-authentication everywhere (e.g. a future change-password endpoint)
+can reuse the same bump.
 
 
 ## events
