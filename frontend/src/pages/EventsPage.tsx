@@ -23,7 +23,7 @@ interface FiltersFormValues {
   search: string;
   tag: string;
   visibility: '' | 'public' | 'private';
-  sort: 'starts_at' | '-starts_at' | 'popularity' | '-popularity';
+  sort: 'starts_at' | '-starts_at' | 'popularity' | '-popularity' | 'created_at' | '-created_at';
 }
 
 export default function EventsPage() {
@@ -194,6 +194,8 @@ export default function EventsPage() {
               <option value="-starts_at">{status === 'upcoming' ? 'Latest first' : 'Most recent first'}</option>
               <option value="-popularity">Most popular</option>
               <option value="popularity">Least popular</option>
+              <option value="-created_at">Recently added</option>
+              <option value="created_at">Oldest added</option>
             </Select>
           </div>
         </div>

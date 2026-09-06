@@ -130,7 +130,9 @@ export async function listEvents(params: ListEventsParams, userId: number | unde
   if (visibility) base.andWhere('events.visibility', visibility);
   if (search) {
     base.andWhere((qb) => {
-      qb.where('events.title', 'like', `%${search}%`).orWhere('events.location', 'like', `%${search}%`);
+      qb.where('events.title', 'like', `%${search}%`)
+        .orWhere('events.description', 'like', `%${search}%`)
+        .orWhere('events.location', 'like', `%${search}%`);
     });
   }
   if (from) base.andWhere('events.starts_at', '>=', new Date(from));

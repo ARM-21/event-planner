@@ -51,5 +51,5 @@ export interface ListEventsParams {
   visibility?: 'public' | 'private';
   from?: string;
   status?: 'upcoming' | 'past';
-  sort?: 'starts_at' | '-starts_at' | 'popularity' | '-popularity';
+  sort?: 'starts_at' | '-starts_at' | 'popularity' | '-popularity' | 'created_at' | '-created_at';
 }

@@ -116,12 +116,12 @@ Query params (all optional):
 |--------------|-----------------------|---------|------------------------------------------|
 | `page`       | int ≥ 1               | 1       |                                          |
 | `limit`      | int, 1–100            | 20      |                                          |
-| `search`     | string                | —       | matches `title` (and `location`)        |
+| `search`     | string                | —       | matches `title`, `description`, or `location` |
 | `tag`        | string                | —       | filter to events tagged with this name  |
 | `visibility` | `public`\|`private`   | —       | private only honored for the requester's own events |
 | `from`       | ISO date              | —       | `starts_at >= from`                     |
 | `status`     | `upcoming`\|`past`    | —       | compared against the server's clock, not `from` |
-| `sort`       | `starts_at`\|`-starts_at`\|`popularity`\|`-popularity` | `starts_at` | `-` prefix = descending; `popularity` orders by how many `going` RSVPs an event has (see `event_rsvps` in `docs/database-schema.md`) |
+| `sort`       | `starts_at`\|`-starts_at`\|`popularity`\|`-popularity`\|`created_at`\|`-created_at` | `starts_at` | `-` prefix = descending; `popularity` orders by how many `going` RSVPs an event has (see `event_rsvps` in `docs/database-schema.md`); `created_at` sorts by when the event was added, not `starts_at` |
 
 Unauthenticated or authenticated-but-not-owner requests are implicitly
 restricted to `visibility = 'public'`; an authenticated user additionally
