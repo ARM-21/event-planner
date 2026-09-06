@@ -8,7 +8,7 @@
  */
 
 import { Router } from 'express';
-import { db } from '../../db/knex';
+import { listTags } from './tags.service';
 
 const router = Router();
 
@@ -20,7 +20,7 @@ const router = Router();
  */
 router.get('/', async (_req, res, next) => {
   try {
-    const data = await db('tags').select('id', 'name').orderBy('name', 'asc');
+    const data = await listTags();
     res.json({ data });
   } catch (err) {
     next(err);

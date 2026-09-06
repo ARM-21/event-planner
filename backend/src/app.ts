@@ -11,6 +11,7 @@
 
 import express from 'express';
 import cors from 'cors';
+import cookieParser from 'cookie-parser';
 import helmet from 'helmet';
 import compression from 'compression';
 import swaggerUi from 'swagger-ui-express';
@@ -37,11 +38,15 @@ if (env.trustProxy) {
 // which relies on inline scripts/styles that helmet's default CSP blocks.
 // Every other helmet protection (HSTS, noSniff, frameguard, etc.) stays on.
 app.use(helmet({ contentSecurityPolicy: false }));
-app.use(cors({ origin: env.corsOrigins }));
+// `credentials: true` is required for the browser to send/accept the
+// httpOnly refresh-token cookie cross-origin (frontend and backend run on
+// different ports in dev, and may be on different domains in production).
+app.use(cors({ origin: env.corsOrigins, credentials: true }));
 app.use(compression());
 // Small cap: this API has no file-upload endpoints, so a legitimate
 // request body is never more than a few KB.
 app.use(express.json({ limit: '10kb' }));
+app.use(cookieParser());
 app.disable('x-powered-by');
 app.use(requestLogger);
 app.use('/api', apiLimiter);

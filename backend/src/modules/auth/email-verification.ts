@@ -33,3 +33,27 @@ export async function createVerificationToken(userId: number): Promise<string> {
   });
   return rawToken;
 }
+
+// Looks up the raw token from an emailed link, checks it hasn't expired,
+// and — if valid — marks the owning user verified and consumes the token
+// (deletes it) in one transaction so it can't be replayed. Returns `null`
+// for any failure case (not found or expired); the route doesn't need to
+// distinguish which, so callers get one outcome to check.
+export async function consumeVerificationToken(rawToken: string): Promise<{ userId: number } | null> {
+  const record = await db<{ id: number; user_id: number; token_hash: string; expires_at: Date | string }>(
+    'email_verifications',
+  )
+    .where({ token_hash: hashToken(rawToken) })
+    .first();
+
+  if (!record || new Date(record.expires_at).getTime() < Date.now()) {
+    return null;
+  }
+
+  await db.transaction(async (trx) => {
+    await trx('users').where({ id: record.user_id }).update({ email_verified_at: trx.fn.now() });
+    await trx('email_verifications').where({ id: record.id }).delete();
+  });
+
+  return { userId: record.user_id };
+}

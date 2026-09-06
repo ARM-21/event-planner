@@ -74,5 +74,5 @@ export const listEventsQuerySchema = z.object({
   visibility: z.enum(['public', 'private']).optional(),
   from: isoDate.optional(),
   status: z.enum(['upcoming', 'past']).optional(),
-  sort: z.enum(['starts_at', '-starts_at']).optional().default('starts_at'),
+  sort: z.enum(['starts_at', '-starts_at', 'popularity', '-popularity']).optional().default('starts_at'),
 });

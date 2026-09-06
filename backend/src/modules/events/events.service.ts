@@ -93,6 +93,154 @@ export async function fetchRsvpSummary(eventId: number, userId: number | undefin
   return { goingCount, myStatus };
 }
 
+export interface ListEventsParams {
+  page: number;
+  limit: number;
+  search?: string;
+  tag?: string;
+  visibility?: 'public' | 'private';
+  from?: string;
+  status?: 'upcoming' | 'past';
+  sort: string;
+}
+
+export interface ListEventsResult {
+  rows: EventRow[];
+  total: number;
+}
+
+// Anonymous callers only ever see public events; an authenticated caller
+// additionally sees their own private ones. Any further `visibility` query
+// filter narrows within this scope — it can never widen it.
+function applyVisibilityScope(query: Knex.QueryBuilder, userId: number | undefined): void {
+  if (userId) {
+    query.where((qb) => {
+      qb.where('events.visibility', 'public').orWhere('events.creator_id', userId);
+    });
+  } else {
+    query.where('events.visibility', 'public');
+  }
+}
+
+export async function listEvents(params: ListEventsParams, userId: number | undefined): Promise<ListEventsResult> {
+  const { page, limit, search, tag, visibility, from, status, sort } = params;
+
+  const base = db('events');
+  applyVisibilityScope(base, userId);
+  if (visibility) base.andWhere('events.visibility', visibility);
+  if (search) {
+    base.andWhere((qb) => {
+      qb.where('events.title', 'like', `%${search}%`).orWhere('events.location', 'like', `%${search}%`);
+    });
+  }
+  if (from) base.andWhere('events.starts_at', '>=', new Date(from));
+  if (status === 'upcoming') base.andWhere('events.starts_at', '>=', db.fn.now());
+  if (status === 'past') base.andWhere('events.ends_at', '<', db.fn.now());
+  if (tag) {
+    base.andWhere(
+      'events.id',
+      'in',
+      db('event_tags').join('tags', 'tags.id', 'event_tags.tag_id').where('tags.name', tag).select('event_tags.event_id'),
+    );
+  }
+
+  const countRow = await base.clone().count<{ count: string }>({ count: 'events.id' }).first();
+  const total = Number(countRow?.count ?? 0);
+
+  const sortColumn = sort.startsWith('-') ? sort.slice(1) : sort;
+  const sortDir = sort.startsWith('-') ? 'desc' : 'asc';
+
+  let rowsQuery = base.clone().select('events.*');
+  if (sortColumn === 'popularity') {
+    // "Popularity" = how many people RSVP'd "going" — a `maybe` doesn't
+    // count. The subquery is pre-grouped to one row per event_id, so the
+    // left join can't fan out and change row counts, only add a count to
+    // order by; `COALESCE` treats an event with zero RSVP rows (nothing
+    // to join to) as 0 rather than leaving it unordered relative to ties.
+    const goingCounts = db('event_rsvps').where('status', 'going').groupBy('event_id').select('event_id', db.raw('COUNT(*) as count'));
+    rowsQuery = rowsQuery
+      .leftJoin(goingCounts.as('going_counts'), 'going_counts.event_id', 'events.id')
+      .orderByRaw(`COALESCE(going_counts.count, 0) ${sortDir}`);
+  } else {
+    rowsQuery = rowsQuery.orderBy(`events.${sortColumn}`, sortDir);
+  }
+
+  const rows: EventRow[] = await rowsQuery.limit(limit).offset((page - 1) * limit);
+  return { rows, total };
+}
+
+export async function findEventById(id: number): Promise<EventRow | undefined> {
+  return db<EventRow>('events').where({ id }).first();
+}
+
+export interface CreateEventInput {
+  creatorId: number;
+  title: string;
+  description: string | null;
+  startsAt: Date;
+  endsAt: Date;
+  location: string;
+  visibility: 'public' | 'private';
+  tags: string[];
+}
+
+export async function createEventRecord(input: CreateEventInput): Promise<EventRow> {
+  return db.transaction(async (trx) => {
+    const [id] = await trx('events').insert({
+      creator_id: input.creatorId,
+      title: input.title,
+      description: input.description,
+      starts_at: input.startsAt,
+      ends_at: input.endsAt,
+      location: input.location,
+      visibility: input.visibility,
+    });
+    if (input.tags.length > 0) {
+      const tagIds = await upsertTagIds(trx, input.tags);
+      await trx('event_tags').insert(tagIds.map((tagId) => ({ event_id: id, tag_id: tagId })));
+    }
+    const row = await trx<EventRow>('events').where({ id }).first();
+    return row!;
+  });
+}
+
+export interface UpdateEventInput {
+  updates: Record<string, unknown>;
+  tags?: string[];
+}
+
+export async function updateEventRecord(id: number, input: UpdateEventInput): Promise<EventRow> {
+  return db.transaction(async (trx) => {
+    if (Object.keys(input.updates).length > 0) {
+      await trx('events').where({ id }).update(input.updates);
+    }
+    if (input.tags) {
+      await trx('event_tags').where({ event_id: id }).delete();
+      if (input.tags.length > 0) {
+        const tagIds = await upsertTagIds(trx, input.tags);
+        await trx('event_tags').insert(tagIds.map((tagId) => ({ event_id: id, tag_id: tagId })));
+      }
+    }
+    const row = await trx<EventRow>('events').where({ id }).first();
+    return row!;
+  });
+}
+
+export async function deleteEventRecord(id: number): Promise<void> {
+  await db('events').where({ id }).delete();
+}
+
+export async function upsertRsvp(eventId: number, userId: number, status: RsvpStatus): Promise<void> {
+  await db('event_rsvps')
+    .insert({ event_id: eventId, user_id: userId, status })
+    .onConflict(['event_id', 'user_id'])
+    .merge(['status']);
+}
+
+export async function deleteRsvp(eventId: number, userId: number): Promise<void> {
+  await db('event_rsvps').where({ event_id: eventId, user_id: userId }).delete();
+}
+
 // Resolves tag names to ids, creating any that don't exist yet. Runs inside
 // the caller's transaction so a partial insert can't leave orphan tags.
 export async function upsertTagIds(trx: Knex.Transaction, names: string[]): Promise<number[]> {

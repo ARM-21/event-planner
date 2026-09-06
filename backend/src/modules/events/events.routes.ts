@@ -8,28 +8,25 @@
  */
 
 import { Router } from 'express';
-import type { Knex } from 'knex';
-import { db } from '../../db/knex';
 import { requireAuth, optionalAuth } from '../../middleware/auth';
 import { badRequest, forbidden, notFound } from '../../utils/errors';
 import { zodIssuesToDetails } from '../../utils/validation';
 import { createEventSchema, updateEventSchema, listEventsQuerySchema, rsvpSchema, MIN_DURATION_MS } from './events.schemas';
-import { type EventRow, toPublicEvent, fetchTagsByEventIds, fetchRsvpSummary, upsertTagIds } from './events.service';
+import {
+  type EventRow,
+  toPublicEvent,
+  fetchTagsByEventIds,
+  fetchRsvpSummary,
+  listEvents,
+  findEventById,
+  createEventRecord,
+  updateEventRecord,
+  deleteEventRecord,
+  upsertRsvp,
+  deleteRsvp,
+} from './events.service';
 
 const router = Router();
-
-// Anonymous callers only ever see public events; an authenticated caller
-// additionally sees their own private ones. Any further `visibility` query
-// filter (below) narrows within this scope — it can never widen it.
-function applyVisibilityScope(query: Knex.QueryBuilder, userId: number | undefined): void {
-  if (userId) {
-    query.where((qb) => {
-      qb.where('events.visibility', 'public').orWhere('events.creator_id', userId);
-    });
-  } else {
-    query.where('events.visibility', 'public');
-  }
-}
 
 // Turns a route param like ":id" into a real positive integer, or null if
 // it isn't one (e.g. "/events/abc") — callers treat null as "not found".
@@ -71,38 +68,7 @@ router.get('/', optionalAuth, async (req, res, next) => {
   const { page, limit, search, tag, visibility, from, status, sort } = parsed.data;
 
   try {
-    const base = db('events');
-    applyVisibilityScope(base, req.userId);
-    if (visibility) base.andWhere('events.visibility', visibility);
-    if (search) {
-      base.andWhere((qb) => {
-        qb.where('events.title', 'like', `%${search}%`).orWhere('events.location', 'like', `%${search}%`);
-      });
-    }
-    if (from) base.andWhere('events.starts_at', '>=', new Date(from));
-
-    if (status === 'upcoming') base.andWhere('events.starts_at', '>=', db.fn.now());
-
-    if (status === 'past') base.andWhere('events.ends_at', '<', db.fn.now());
-    if (tag) {
-      base.andWhere(
-        'events.id',
-        'in',
-        db('event_tags').join('tags', 'tags.id', 'event_tags.tag_id').where('tags.name', tag).select('event_tags.event_id'),
-      );
-    }
-
-    const countRow = await base.clone().count<{ count: string }>({ count: 'events.id' }).first();
-    const total = Number(countRow?.count ?? 0);
-
-    const sortColumn = sort.startsWith('-') ? sort.slice(1) : sort;
-    const sortDir = sort.startsWith('-') ? 'desc' : 'asc';
-    const rows: EventRow[] = await base
-      .clone()
-      .select('events.*')
-      .orderBy(`events.${sortColumn}`, sortDir)
-      .limit(limit)
-      .offset((page - 1) * limit);
+    const { rows, total } = await listEvents({ page, limit, search, tag, visibility, from, status, sort }, req.userId);
 
     const tagsByEvent = await fetchTagsByEventIds(rows.map((row) => row.id));
     const data = rows.map((row) => toPublicEvent(row, tagsByEvent.get(row.id) ?? []));
@@ -133,25 +99,19 @@ router.post('/', requireAuth, async (req, res, next) => {
   const { title, description, startsAt, endsAt, location, visibility, tags } = parsed.data;
 
   try {
-    const event = await db.transaction(async (trx) => {
-      const [id] = await trx('events').insert({
-        creator_id: req.userId,
-        title,
-        description: description ?? null,
-        starts_at: new Date(startsAt),
-        ends_at: new Date(endsAt),
-        location,
-        visibility,
-      });
-      if (tags.length > 0) {
-        const tagIds = await upsertTagIds(trx, tags);
-        await trx('event_tags').insert(tagIds.map((tagId) => ({ event_id: id, tag_id: tagId })));
-      }
-      return trx<EventRow>('events').where({ id }).first();
+    const event = await createEventRecord({
+      creatorId: req.userId!,
+      title,
+      description: description ?? null,
+      startsAt: new Date(startsAt),
+      endsAt: new Date(endsAt),
+      location,
+      visibility,
+      tags,
     });
 
-    const tagsByEvent = await fetchTagsByEventIds([event!.id]);
-    res.status(201).json(toPublicEvent(event!, tagsByEvent.get(event!.id) ?? []));
+    const tagsByEvent = await fetchTagsByEventIds([event.id]);
+    res.status(201).json(toPublicEvent(event, tagsByEvent.get(event.id) ?? []));
   } catch (err) {
     next(err);
   }
@@ -172,7 +132,7 @@ router.get('/:id', optionalAuth, async (req, res, next) => {
     return;
   }
   try {
-    const row = await db<EventRow>('events').where({ id }).first();
+    const row = await findEventById(id);
     if (!row || isHiddenFromViewer(row, req.userId)) {
       next(notFound('Event not found'));
       return;
@@ -207,16 +167,13 @@ router.put('/:id/rsvp', requireAuth, async (req, res, next) => {
   }
 
   try {
-    const existing = await db<EventRow>('events').where({ id }).first();
+    const existing = await findEventById(id);
     if (!existing || isHiddenFromViewer(existing, req.userId)) {
       next(notFound('Event not found'));
       return;
     }
 
-    await db('event_rsvps')
-      .insert({ event_id: id, user_id: req.userId, status: parsed.data.status })
-      .onConflict(['event_id', 'user_id'])
-      .merge(['status']);
+    await upsertRsvp(id, req.userId!, parsed.data.status);
 
     const rsvp = await fetchRsvpSummary(id, req.userId);
     res.json(rsvp);
@@ -239,13 +196,13 @@ router.delete('/:id/rsvp', requireAuth, async (req, res, next) => {
   }
 
   try {
-    const existing = await db<EventRow>('events').where({ id }).first();
+    const existing = await findEventById(id);
     if (!existing || isHiddenFromViewer(existing, req.userId)) {
       next(notFound('Event not found'));
       return;
     }
 
-    await db('event_rsvps').where({ event_id: id, user_id: req.userId }).delete();
+    await deleteRsvp(id, req.userId!);
     res.status(204).send();
   } catch (err) {
     next(err);
@@ -274,7 +231,7 @@ router.put('/:id', requireAuth, async (req, res, next) => {
   }
 
   try {
-    const existing = await db<EventRow>('events').where({ id }).first();
+    const existing = await findEventById(id);
     if (!existing) {
       next(notFound('Event not found'));
       return;
@@ -305,22 +262,10 @@ router.put('/:id', requireAuth, async (req, res, next) => {
     if (startsAt) updates.starts_at = new Date(startsAt);
     if (endsAt) updates.ends_at = new Date(endsAt);
 
-    const row = await db.transaction(async (trx) => {
-      if (Object.keys(updates).length > 0) {
-        await trx('events').where({ id }).update(updates);
-      }
-      if (tags) {
-        await trx('event_tags').where({ event_id: id }).delete();
-        if (tags.length > 0) {
-          const tagIds = await upsertTagIds(trx, tags);
-          await trx('event_tags').insert(tagIds.map((tagId) => ({ event_id: id, tag_id: tagId })));
-        }
-      }
-      return trx<EventRow>('events').where({ id }).first();
-    });
+    const row = await updateEventRecord(id, { updates, tags });
 
     const tagsByEvent = await fetchTagsByEventIds([id]);
-    res.json(toPublicEvent(row!, tagsByEvent.get(id) ?? []));
+    res.json(toPublicEvent(row, tagsByEvent.get(id) ?? []));
   } catch (err) {
     next(err);
   }
@@ -340,7 +285,7 @@ router.delete('/:id', requireAuth, async (req, res, next) => {
     return;
   }
   try {
-    const existing = await db<EventRow>('events').where({ id }).first();
+    const existing = await findEventById(id);
     if (!existing) {
       next(notFound('Event not found'));
       return;
@@ -350,7 +295,7 @@ router.delete('/:id', requireAuth, async (req, res, next) => {
       next(authzError);
       return;
     }
-    await db('events').where({ id }).delete();
+    await deleteEventRecord(id);
     res.status(204).send();
   } catch (err) {
     next(err);

@@ -34,9 +34,12 @@ export function requireAuth(req: Request, _res: Response, next: NextFunction): v
   const token = header.slice('Bearer '.length);
   try {
     const payload = jwt.verify(token, env.jwtSecret);
-    const sub = typeof payload === 'string' ? payload : payload.sub;
-    const userId = Number(sub);
-    if (!sub || Number.isNaN(userId)) {
+    if (typeof payload === 'string' || payload.type !== 'access') {
+      next(unauthorized('Invalid or expired token'));
+      return;
+    }
+    const userId = Number(payload.sub);
+    if (!payload.sub || Number.isNaN(userId)) {
       next(unauthorized('Invalid or expired token'));
       return;
     }
@@ -60,10 +63,11 @@ export function optionalAuth(req: Request, _res: Response, next: NextFunction): 
   const token = header.slice('Bearer '.length);
   try {
     const payload = jwt.verify(token, env.jwtSecret);
-    const sub = typeof payload === 'string' ? payload : payload.sub;
-    const userId = Number(sub);
-    if (sub && !Number.isNaN(userId)) {
-      req.userId = userId;
+    if (typeof payload !== 'string' && payload.type === 'access') {
+      const userId = Number(payload.sub);
+      if (payload.sub && !Number.isNaN(userId)) {
+        req.userId = userId;
+      }
     }
   } catch {
     // invalid/expired token on an optional-auth route — treat as anonymous

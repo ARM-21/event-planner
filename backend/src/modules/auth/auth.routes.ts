@@ -9,37 +9,62 @@
  */
 
 import { Router } from 'express';
+import type { Response } from 'express';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
-import { db } from '../../db/knex';
 import { env } from '../../config/env';
 import { requireAuth } from '../../middleware/auth';
 import { badRequest, conflict, unauthorized } from '../../utils/errors';
 import { registerSchema, loginSchema } from './auth.schemas';
-import { createVerificationToken, hashToken } from './email-verification';
+import { createVerificationToken, consumeVerificationToken } from './email-verification';
 import { sendVerificationEmail } from './mailer';
+import { toPublicUser, findUserByEmail, findUserById, createUser, incrementTokenVersion } from './auth.service';
 
 const router = Router();
 
-interface UserRow {
-  id: number;
-  name: string;
-  email: string;
-  password_hash: string;
-  email_verified_at: Date | string | null;
-}
-
-function toPublicUser(row: Pick<UserRow, 'id' | 'name' | 'email' | 'email_verified_at'>) {
-  return { id: row.id, name: row.name, email: row.email, emailVerified: row.email_verified_at !== null };
-}
+const REFRESH_COOKIE_NAME = 'refresh_token';
+const REFRESH_COOKIE_PATH = '/api/auth';
+const REFRESH_COOKIE_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
 
 async function issueVerificationEmail(userId: number, email: string): Promise<void> {
   const rawToken = await createVerificationToken(userId);
   sendVerificationEmail(email, `${env.frontendUrl}/verify-email?token=${rawToken}`);
 }
 
-function issueToken(userId: number): string {
-  return jwt.sign({ sub: userId }, env.jwtSecret, { expiresIn: '7d' });
+// Access tokens are short-lived and sent in the response body (kept in
+// memory/localStorage by the frontend); refresh tokens are longer-lived
+// and only ever travel as an httpOnly cookie, never readable by JS. Both
+// carry `ver` (the user's current `token_version`) so bumping that column
+// invalidates every outstanding refresh token immediately — see `logout`
+// below — and both carry `type` so one can't be used in place of the
+// other (checked in `middleware/auth.ts` and the `/refresh` route).
+function issueTokens(userId: number, tokenVersion: number): { accessToken: string; refreshToken: string } {
+  const accessToken = jwt.sign({ sub: userId, ver: tokenVersion, type: 'access' }, env.jwtSecret, {
+    expiresIn: '15m',
+  });
+  const refreshToken = jwt.sign({ sub: userId, ver: tokenVersion, type: 'refresh' }, env.jwtSecret, {
+    expiresIn: '30d',
+  });
+  return { accessToken, refreshToken };
+}
+
+function setRefreshCookie(res: Response, refreshToken: string): void {
+  res.cookie(REFRESH_COOKIE_NAME, refreshToken, {
+    httpOnly: true,
+    // Only `Secure` in production (dev runs over plain http, where a
+    // Secure cookie would just never be sent). `SameSite: 'none'` needs
+    // `Secure` per spec, so the two are tied to the same condition; `lax`
+    // is fine for dev since frontend/backend differ only by port, which
+    // doesn't count as cross-site.
+    secure: env.nodeEnv === 'production',
+    sameSite: env.nodeEnv === 'production' ? 'none' : 'lax',
+    path: REFRESH_COOKIE_PATH,
+    maxAge: REFRESH_COOKIE_MAX_AGE_MS,
+  });
+}
+
+function clearRefreshCookie(res: Response): void {
+  res.clearCookie(REFRESH_COOKIE_NAME, { path: REFRESH_COOKIE_PATH });
 }
 
 /**
@@ -66,16 +91,18 @@ router.post('/register', async (req, res, next) => {
   const { name, email, password } = parsed.data;
 
   try {
-    const existing = await db<UserRow>('users').where({ email }).first();
+    const existing = await findUserByEmail(email);
     if (existing) {
       next(conflict('Email already registered'));
       return;
     }
 
     const passwordHash = await bcrypt.hash(password, 10);
-    const [id] = await db('users').insert({ name, email, password_hash: passwordHash });
+    const id = await createUser({ name, email, passwordHash });
     await issueVerificationEmail(id, email);
-    res.status(201).json({ user: { id, name, email, emailVerified: false }, token: issueToken(id) });
+    const { accessToken, refreshToken } = issueTokens(id, 0);
+    setRefreshCookie(res, refreshToken);
+    res.status(201).json({ user: { id, name, email, emailVerified: false }, token: accessToken });
   } catch (err) {
     next(err);
   }
@@ -103,7 +130,7 @@ router.post('/login', async (req, res, next) => {
   const { email, password } = parsed.data;
 
   try {
-    const user = await db<UserRow>('users').where({ email }).first();
+    const user = await findUserByEmail(email);
     if (!user) {
       next(unauthorized());
       return;
@@ -115,7 +142,94 @@ router.post('/login', async (req, res, next) => {
       return;
     }
 
-    res.status(200).json({ user: toPublicUser(user), token: issueToken(user.id) });
+    const { accessToken, refreshToken } = issueTokens(user.id, user.token_version);
+    setRefreshCookie(res, refreshToken);
+    res.status(200).json({ user: toPublicUser(user), token: accessToken });
+  } catch (err) {
+    next(err);
+  }
+});
+
+/**
+ * POST /api/auth/refresh
+ *
+ * Trades a still-valid refresh cookie for a fresh access token, so the
+ * frontend never has to bounce someone to the login page just because
+ * their 15-minute access token expired while they were still using the
+ * app. Not gated by `requireAuth` — identity comes entirely from the
+ * cookie itself, which is the point of a refresh endpoint.
+ *
+ * Also rotates the refresh cookie itself (sliding expiry): an active
+ * user's session keeps extending 30 days from their last refresh instead
+ * of hard-expiring 30 days after they first logged in.
+ */
+router.post('/refresh', async (req, res, next) => {
+  const token = req.cookies?.[REFRESH_COOKIE_NAME];
+  if (typeof token !== 'string') {
+    next(unauthorized('No refresh token'));
+    return;
+  }
+
+  try {
+    const payload = jwt.verify(token, env.jwtSecret);
+    if (typeof payload === 'string' || payload.type !== 'refresh') {
+      next(unauthorized('Invalid or expired refresh token'));
+      return;
+    }
+
+    const userId = Number(payload.sub);
+    if (!payload.sub || Number.isNaN(userId)) {
+      next(unauthorized('Invalid or expired refresh token'));
+      return;
+    }
+
+    const user = await findUserById(userId);
+    // A version mismatch means this token was revoked by a `logout` (or
+    // any future action that bumps `token_version`) after it was issued.
+    if (!user || payload.ver !== user.token_version) {
+      next(unauthorized('Invalid or expired refresh token'));
+      return;
+    }
+
+    const { accessToken, refreshToken } = issueTokens(user.id, user.token_version);
+    setRefreshCookie(res, refreshToken);
+    res.status(200).json({ token: accessToken });
+  } catch {
+    next(unauthorized('Invalid or expired refresh token'));
+  }
+});
+
+/**
+ * POST /api/auth/logout
+ *
+ * Bumps the caller's `token_version`, which immediately invalidates every
+ * refresh token issued to them (including the one this request is using)
+ * — real server-side revocation, not just "the frontend forgot the
+ * token". Not gated by `requireAuth`: this should still work even if the
+ * caller's access token already expired, since forgetting a long-lived
+ * refresh token behind is exactly the case logout needs to cover.
+ *
+ * Identity is read from the refresh cookie with `ignoreExpiration` so an
+ * expired-but-correctly-signed cookie can still be attributed to a user
+ * and revoked; a missing or invalid cookie just means there's nothing to
+ * revoke (same no-op-if-nothing-to-do shape as `DELETE /events/:id/rsvp`).
+ */
+router.post('/logout', async (req, res, next) => {
+  const token = req.cookies?.[REFRESH_COOKIE_NAME];
+  try {
+    if (typeof token === 'string') {
+      try {
+        const payload = jwt.verify(token, env.jwtSecret, { ignoreExpiration: true });
+        const userId = typeof payload !== 'string' ? Number(payload.sub) : NaN;
+        if (!Number.isNaN(userId)) {
+          await incrementTokenVersion(userId);
+        }
+      } catch {
+        // Malformed/unsigned cookie — nothing we can attribute or revoke.
+      }
+    }
+    clearRefreshCookie(res);
+    res.status(204).send();
   } catch (err) {
     next(err);
   }
@@ -140,21 +254,11 @@ router.post('/verify-email', async (req, res, next) => {
   }
 
   try {
-    const record = await db<{ id: number; user_id: number; token_hash: string; expires_at: Date | string }>(
-      'email_verifications',
-    )
-      .where({ token_hash: hashToken(token) })
-      .first();
-
-    if (!record || new Date(record.expires_at).getTime() < Date.now()) {
+    const consumed = await consumeVerificationToken(token);
+    if (!consumed) {
       next(badRequest('Verification link is invalid or has expired'));
       return;
     }
-
-    await db.transaction(async (trx) => {
-      await trx('users').where({ id: record.user_id }).update({ email_verified_at: trx.fn.now() });
-      await trx('email_verifications').where({ id: record.id }).delete();
-    });
 
     res.status(200).json({ verified: true });
   } catch (err) {
@@ -171,7 +275,7 @@ router.post('/verify-email', async (req, res, next) => {
  */
 router.post('/resend-verification', requireAuth, async (req, res, next) => {
   try {
-    const user = await db<UserRow>('users').where({ id: req.userId }).first();
+    const user = req.userId ? await findUserById(req.userId) : undefined;
     if (!user) {
       next(unauthorized());
       return;
