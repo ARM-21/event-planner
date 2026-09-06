@@ -1,7 +1,8 @@
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft, Calendar, Check, Clock, Globe, HelpCircle, Lock, MapPin, Pencil, Trash2, X } from 'lucide-react';
-import { ApiError } from '../api/client';
+import { toast } from 'sonner';
+import { ApiError, getErrorMessage } from '../api/client';
 import type { RsvpStatus } from '../api/events/types';
 import { deleteEvent } from '../api/events/event-deletor';
 import { clearEventRsvp } from '../api/events/event-rsvp-clearer';
@@ -26,8 +27,10 @@ export default function EventDetailPage() {
     mutationFn: () => deleteEvent(eventId as number, token as string),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['events'] });
+      toast.success('Event deleted');
       navigate('/events');
     },
+    onError: (err) => toast.error(getErrorMessage(err, 'Failed to delete event.')),
   });
 
   function handleDelete() {
@@ -38,11 +41,13 @@ export default function EventDetailPage() {
   const setRsvpMutation = useMutation({
     mutationFn: (status: RsvpStatus) => setEventRsvp(eventId as number, status, token as string),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['events', eventId] }),
+    onError: (err) => toast.error(getErrorMessage(err, 'Failed to update RSVP.')),
   });
 
   const clearRsvpMutation = useMutation({
     mutationFn: () => clearEventRsvp(eventId as number, token as string),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['events', eventId] }),
+    onError: (err) => toast.error(getErrorMessage(err, 'Failed to update RSVP.')),
   });
 
   // Clicking the already-selected option clears it back to "no response",
@@ -214,12 +219,6 @@ export default function EventDetailPage() {
           <div className="mt-6 border-t border-gray-200 pt-4 text-xs text-gray-400">
             Created {new Date(event.createdAt).toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' })}
           </div>
-
-          {deleteMutation.isError && (
-            <p role="alert" className="mt-4 text-sm text-red-600">
-              {deleteMutation.error instanceof ApiError ? deleteMutation.error.message : 'Failed to delete event.'}
-            </p>
-          )}
         </Card>
       </div>
     </AppShell>

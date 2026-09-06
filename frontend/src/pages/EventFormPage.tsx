@@ -4,6 +4,7 @@ import { Controller, useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft } from 'lucide-react';
+import { toast } from 'sonner';
 import { ApiError } from '../api/client';
 import { createEvent } from '../api/events/event-creator';
 import { updateEvent } from '../api/events/event-updater';
@@ -95,6 +96,7 @@ export default function EventFormPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['events'] });
       queryClient.invalidateQueries({ queryKey: ['tags'] });
+      toast.success('Event created');
       navigate('/events');
     },
   });
@@ -104,6 +106,7 @@ export default function EventFormPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['events'] });
       queryClient.invalidateQueries({ queryKey: ['tags'] });
+      toast.success('Event updated');
       navigate('/events');
     },
   });
@@ -127,6 +130,7 @@ export default function EventFormPage() {
         if (Object.keys(payload).length > 0) {
           await updateMutation.mutateAsync(payload);
         } else {
+          toast.info('No changes to save');
           navigate('/events');
         }
       } else {

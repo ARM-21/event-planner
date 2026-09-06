@@ -7,7 +7,7 @@ function Logo() {
   return (
     <Link to="/events" className="flex items-center gap-2 text-indigo-700">
       <img
-        src="evently-logo.svg"
+        src="/evently-logo.png"
         alt="Evently logo"
         className="h-6 w-6 shrink-0"
         width={24}
@@ -15,7 +15,7 @@ function Logo() {
       />
       <span className="sr-only">Evently</span>
       <span className="hidden text-lg font-semibold sm:inline">Evently</span>
-      <span className="inline text-lg font-semibold sm:hidden">E</span>
+      <span className="inline text-sm font-semibold sm:hidden">Evently</span>
     </Link>
   );
 }

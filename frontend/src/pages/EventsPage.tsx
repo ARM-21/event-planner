@@ -3,7 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Plus, Search, X } from 'lucide-react';
-import { ApiError } from '../api/client';
+import { toast } from 'sonner';
+import { ApiError, getErrorMessage } from '../api/client';
 import { resendVerification } from '../api/auth/resend-verification';
 import { deleteEvent } from '../api/events/event-deletor';
 import { useAuth } from '../contexts/auth';
@@ -21,7 +22,7 @@ interface FiltersFormValues {
   search: string;
   tag: string;
   visibility: '' | 'public' | 'private';
-  sort: 'starts_at' | '-starts_at';
+  sort: 'starts_at' | '-starts_at' | 'popularity' | '-popularity';
 }
 
 export default function EventsPage() {
@@ -61,7 +62,12 @@ export default function EventsPage() {
 
   function handleStatusChange(next: 'upcoming' | 'past') {
     setStatus(next);
-    setValue('sort', next === 'upcoming' ? 'starts_at' : '-starts_at');
+    // Only flip the date-sort default (soonest-first for Upcoming,
+    // latest-first for Past) — if the user has explicitly picked a
+    // popularity sort, switching tabs shouldn't silently overwrite it.
+    if (sort === 'starts_at' || sort === '-starts_at') {
+      setValue('sort', next === 'upcoming' ? 'starts_at' : '-starts_at');
+    }
     setPage(1);
   }
 
@@ -77,7 +83,11 @@ export default function EventsPage() {
 
   const deleteMutation = useMutation({
     mutationFn: (id: number) => deleteEvent(id, token as string),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['events'] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['events'] });
+      toast.success('Event deleted');
+    },
+    onError: (err) => toast.error(getErrorMessage(err, 'Failed to delete event.')),
   });
 
   const resendMutation = useMutation({
@@ -93,15 +103,7 @@ export default function EventsPage() {
   const pagination = eventsQuery.data?.pagination;
   const tags = tagsQuery.data?.data ?? [];
 
-  const error = deleteMutation.isError
-    ? deleteMutation.error instanceof ApiError
-      ? deleteMutation.error.message
-      : 'Failed to delete event.'
-    : eventsQuery.isError
-      ? eventsQuery.error instanceof ApiError
-        ? eventsQuery.error.message
-        : 'Failed to load events.'
-      : null;
+  const error = eventsQuery.isError ? getErrorMessage(eventsQuery.error, 'Failed to load events.') : null;
 
   const noFilterActive = !visibility && !tag;
 
@@ -181,9 +183,18 @@ export default function EventsPage() {
           </div>
 
           <div className="w-40">
+            {/* Label text (not the option order/values — those stay fixed
+                so the selected option's identity can't drift across a
+                re-render) describes what `starts_at`/`-starts_at`
+                actually produce for the *active* tab: `-starts_at` means
+                "farthest away first" on Upcoming but "most recent first"
+                on Past, so a single static label pair would describe the
+                wrong thing on one of the two tabs. */}
             <Select aria-label="Sort" {...register('sort')}>
-              <option value="starts_at">Upcoming first </option>
-              <option value="-starts_at">Nearest first</option>
+              <option value="starts_at">{status === 'upcoming' ? 'Soonest first' : 'Oldest first'}</option>
+              <option value="-starts_at">{status === 'upcoming' ? 'Latest first' : 'Most recent first'}</option>
+              <option value="-popularity">Most popular</option>
+              <option value="popularity">Least popular</option>
             </Select>
           </div>
         </div>
