@@ -42,8 +42,7 @@ export const eventFormSchema = z.object(baseEventFields).refine(endsAfterStarts,
 });
 export type EventFormValues = z.infer<typeof eventFormSchema>;
 
-// Create-only: startsAt is an absolute point-in-time check ("at least 24h
-// from now").
+// Create-only: startsAt must be at least 24h from now.
 export const createEventFormSchema = z
   .object(baseEventFields)
   .refine(endsAfterStarts, { message: 'Ends at must be at least 15 minutes after the start time', path: ['endsAt'] })

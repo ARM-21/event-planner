@@ -17,8 +17,7 @@ export interface EventItem {
   tags: string[];
   createdAt: string;
   updatedAt: string;
-  // Only present on a single-event fetch (`GET /events/:id`) — the list
-  // endpoint doesn't compute this per row, so it's absent on list items.
+  // Only present on a single-event fetch — absent on list items.
   rsvp?: RsvpSummary;
 }
 

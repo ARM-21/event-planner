@@ -8,6 +8,7 @@ import { useAuth } from '../contexts/auth';
 import { registerSchema, type RegisterFormValues } from '../lib/schemas';
 import { Button, ErrorBanner, Field, Input, PasswordInput } from '../components/ui';
 import { AuthLayout } from '../components/AuthLayout';
+import { ROUTES } from '../config/routes';
 
 export default function RegisterPage() {
   const { setSession } = useAuth();
@@ -23,7 +24,7 @@ export default function RegisterPage() {
     mutationFn: (values: RegisterFormValues) => registerRequest(values.name, values.email, values.password),
     onSuccess: (data) => {
       setSession(data);
-      navigate('/events');
+      navigate(ROUTES.EVENTS);
     },
     onError: (err) => {
       if (err instanceof ApiError && err.details && err.details.length > 0) {
@@ -57,7 +58,7 @@ export default function RegisterPage() {
       </form>
       <p className="mt-6 text-center text-sm text-gray-600">
         Already have an account?{' '}
-        <Link to="/login" className="font-medium text-indigo-600 hover:text-indigo-500">
+        <Link to={ROUTES.LOGIN} className="font-medium text-indigo-600 hover:text-indigo-500">
           Log in
         </Link>
       </p>

@@ -7,22 +7,25 @@ import EventDetailPage from './pages/EventDetailPage.tsx';
 import VerifyEmailPage from './pages/VerifyEmailPage.tsx';
 import ProtectedRoute from './components/ProtectedRoute.tsx';
 import GuestRoute from './components/GuestRoute.tsx';
+import { ROUTES } from './config/routes';
 
 export default function App() {
   return (
     <Routes>
       <Route element={<GuestRoute />}>
-        <Route path="/login" element={<LoginPage />} />
-        <Route path="/register" element={<RegisterPage />} />
+        <Route path={ROUTES.LOGIN} element={<LoginPage />} />
+        <Route path={ROUTES.REGISTER} element={<RegisterPage />} />
       </Route>
-      <Route path="/verify-email" element={<VerifyEmailPage />} />
-      <Route path="/events" element={<EventsPage />} />
+      <Route path={ROUTES.VERIFY_EMAIL} element={<VerifyEmailPage />} />
+      <Route path={ROUTES.EVENTS} element={<EventsPage />} />
+      {/* `:id` is a route-pattern placeholder, not a real id — can't come
+          from `ROUTES.EVENT_DETAIL`/`EVENT_EDIT` (see config/routes.ts). */}
       <Route path="/events/:id" element={<EventDetailPage />} />
       <Route element={<ProtectedRoute />}>
-        <Route path="/events/new" element={<EventFormPage />} />
+        <Route path={ROUTES.EVENT_NEW} element={<EventFormPage />} />
         <Route path="/events/:id/edit" element={<EventFormPage />} />
       </Route>
-      <Route path="*" element={<Navigate to="/events" replace />} />
+      <Route path="*" element={<Navigate to={ROUTES.EVENTS} replace />} />
     </Routes>
   );
 }

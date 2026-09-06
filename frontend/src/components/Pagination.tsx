@@ -1,8 +1,6 @@
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 
-// Builds the sequence of page buttons to render, collapsing long runs to
-// an ellipsis so e.g. page 1 of 50 doesn't render 50 buttons — always
-// keeps the first/last page and a window around the current one visible.
+// Builds the page-button sequence, collapsing long runs to an ellipsis.
 function pageNumbers(current: number, total: number): (number | 'ellipsis')[] {
   const pages = new Set([1, total, current, current - 1, current + 1]);
   const sorted = [...pages].filter((p) => p >= 1 && p <= total).sort((a, b) => a - b);
@@ -15,11 +13,7 @@ function pageNumbers(current: number, total: number): (number | 'ellipsis')[] {
   return result;
 }
 
-/**
- * Numbered pagination control. Purely a presentation upgrade over a
- * Previous/Next pair — the caller still owns `page` state and just gets
- * told which page was clicked.
- */
+// Numbered pagination control; the caller still owns `page` state.
 export function Pagination({ page, totalPages, onChange }: { page: number; totalPages: number; onChange: (page: number) => void }) {
   if (totalPages <= 1) return null;
 

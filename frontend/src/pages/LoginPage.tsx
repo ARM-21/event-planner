@@ -8,6 +8,7 @@ import { useAuth } from '../contexts/auth';
 import { loginSchema, type LoginFormValues } from '../lib/schemas';
 import { Button, ErrorBanner, Field, Input, PasswordInput } from '../components/ui';
 import { AuthLayout } from '../components/AuthLayout';
+import { ROUTES } from '../config/routes';
 
 export default function LoginPage() {
   const { setSession } = useAuth();
@@ -23,7 +24,7 @@ export default function LoginPage() {
     mutationFn: (values: LoginFormValues) => login(values.email, values.password),
     onSuccess: (data) => {
       setSession(data);
-      navigate('/events');
+      navigate(ROUTES.EVENTS);
     },
     onError: (err) => {
       setError('root', { message: err instanceof ApiError ? err.message : 'Something went wrong. Please try again.' });
@@ -48,7 +49,7 @@ export default function LoginPage() {
       </form>
       <p className="mt-6 text-center text-sm text-gray-600">
         Don&apos;t have an account?{' '}
-        <Link to="/register" className="font-medium text-indigo-600 hover:text-indigo-500">
+        <Link to={ROUTES.REGISTER} className="font-medium text-indigo-600 hover:text-indigo-500">
           Sign up
         </Link>
       </p>

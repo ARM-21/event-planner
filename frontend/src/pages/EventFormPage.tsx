@@ -13,6 +13,7 @@ import { useAuth } from '../contexts/auth';
 import { useEvent } from '../query/events/use-event';
 import { useTags } from '../query/tags/use-tags';
 import { createEventFormSchema, eventFormSchema, MIN_LEAD_TIME_MS, type EventFormValues } from '../lib/schemas';
+import { ROUTES } from '../config/routes';
 import { Button, Card, Field, Input, Select, Textarea } from '../components/ui';
 import { AppShell } from '../components/AppShell';
 import { TagInput } from '../components/TagInput';
@@ -66,10 +67,7 @@ export default function EventFormPage() {
   });
 
   const watchedStartsAt = watch('startsAt');
-  // Only nudges the native picker on create — an existing event's startsAt
-  // may already be under 24h out, and forcing this min in edit mode would
-  // make that field impossible to leave alone in the UI (even though
-  // submitting it unchanged is still fine, since it won't be re-validated).
+  // Only nudges the native picker on create — an existing edit's startsAt may already be under 24h out.
   const minStartsAt = isEdit ? undefined : toDatetimeLocal(new Date(Date.now() + MIN_LEAD_TIME_MS).toISOString());
 
   useEffect(() => {
@@ -97,7 +95,7 @@ export default function EventFormPage() {
       queryClient.invalidateQueries({ queryKey: ['events'] });
       queryClient.invalidateQueries({ queryKey: ['tags'] });
       toast.success('Event created');
-      navigate('/events');
+      navigate(ROUTES.EVENTS);
     },
   });
 
@@ -107,7 +105,7 @@ export default function EventFormPage() {
       queryClient.invalidateQueries({ queryKey: ['events'] });
       queryClient.invalidateQueries({ queryKey: ['tags'] });
       toast.success('Event updated');
-      navigate('/events');
+      navigate(ROUTES.EVENTS);
     },
   });
 
@@ -115,9 +113,7 @@ export default function EventFormPage() {
     if (!token) return;
     try {
       if (isEdit && eventId) {
-        // Only send fields that actually changed — startsAt must be in the
-        // future on write, so resubmitting an unchanged past date would
-        // otherwise fail validation on an edit that never touched it.
+        // Only send fields that changed — an untouched past startsAt would otherwise fail re-validation.
         const payload: Partial<EventInput> = {};
         if (dirtyFields.title) payload.title = values.title;
         if (dirtyFields.description) payload.description = values.description || undefined;
@@ -131,7 +127,7 @@ export default function EventFormPage() {
           await updateMutation.mutateAsync(payload);
         } else {
           toast.info('No changes to save');
-          navigate('/events');
+          navigate(ROUTES.EVENTS);
         }
       } else {
         await createMutation.mutateAsync({
@@ -168,7 +164,7 @@ export default function EventFormPage() {
       <AppShell>
         <Card className="mx-auto max-w-sm text-center">
           <p className="text-gray-700">You don&apos;t have permission to edit this event.</p>
-          <Button className="mt-4" onClick={() => navigate('/events')}>
+          <Button className="mt-4" onClick={() => navigate(ROUTES.EVENTS)}>
             Back to events
           </Button>
         </Card>
@@ -182,7 +178,7 @@ export default function EventFormPage() {
       <AppShell>
         <Card className="mx-auto max-w-sm text-center">
           <p className="text-gray-700">{message}</p>
-          <Button className="mt-4" onClick={() => navigate('/events')}>
+          <Button className="mt-4" onClick={() => navigate(ROUTES.EVENTS)}>
             Back to events
           </Button>
         </Card>
@@ -196,7 +192,7 @@ export default function EventFormPage() {
     <AppShell>
       <div className="mx-auto max-w-2xl space-y-6">
         <Link
-          to="/events"
+          to={ROUTES.EVENTS}
           className="inline-flex items-center gap-1.5 text-sm font-medium text-gray-500 hover:text-gray-700"
         >
           <ArrowLeft className="h-4 w-4" aria-hidden="true" />
@@ -247,7 +243,7 @@ export default function EventFormPage() {
               <Button type="submit" disabled={submitting}>
                 {submitting ? 'Saving…' : isEdit ? 'Save changes' : 'Create event'}
               </Button>
-              <Button type="button" variant="secondary" onClick={() => navigate('/events')}>
+              <Button type="button" variant="secondary" onClick={() => navigate(ROUTES.EVENTS)}>
                 Cancel
               </Button>
             </div>

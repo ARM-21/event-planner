@@ -1,4 +1,5 @@
 import axios, { type InternalAxiosRequestConfig } from 'axios';
+import { ROUTES } from '../config/routes';
 
 export interface FieldError {
   field: string;
@@ -18,18 +19,14 @@ export class ApiError extends Error {
 export const apiClient = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000/api',
   headers: { 'Content-Type': 'application/json' },
-  // Required so the browser sends/accepts the httpOnly refresh-token
-  // cookie on every request, not just ones that happen to need it.
+  // So the browser sends/accepts the httpOnly refresh-token cookie.
   withCredentials: true,
 });
 
 type TokenRefreshListener = (token: string) => void;
 let onTokenRefresh: TokenRefreshListener | null = null;
 
-// `AuthProvider` registers itself here so a silent refresh triggered below
-// (from whichever request happens to 401 first) updates the token it hands
-// out everywhere else too, instead of only fixing the one request that
-// triggered it.
+// `AuthProvider` registers itself here to catch a silently-refreshed token.
 export function setTokenRefreshListener(listener: TokenRefreshListener | null): void {
   onTokenRefresh = listener;
 }
@@ -37,20 +34,13 @@ export function setTokenRefreshListener(listener: TokenRefreshListener | null): 
 type SessionExpiredListener = () => void;
 let onSessionExpired: SessionExpiredListener | null = null;
 
-// Fired when `/auth/refresh` itself fails (missing/expired/revoked refresh
-// cookie) — the definitive "this session is actually over" signal, as
-// opposed to the routine 401-then-silent-refresh case above. `AuthProvider`
-// uses this to clear stale local state, notify the user, and redirect to
-// `/login`, instead of silently leaving a dead session in `localStorage`.
+// Fired when `/auth/refresh` itself fails — the session is genuinely over.
 export function setSessionExpiredListener(listener: SessionExpiredListener | null): void {
   onSessionExpired = listener;
 }
 
-// Endpoints that must never trigger a refresh-and-retry themselves — either
-// because a 401 there is a real "bad credentials"/"no session" answer
-// (login/register), or because retrying it would recurse into itself
-// (refresh).
-const AUTH_ENDPOINTS_WITHOUT_REFRESH = ['/auth/login', '/auth/register', '/auth/refresh'];
+// Endpoints that must never trigger a refresh-and-retry themselves.
+const AUTH_ENDPOINTS_WITHOUT_REFRESH = [ROUTES.API.AUTH.LOGIN, ROUTES.API.AUTH.REGISTER, ROUTES.API.AUTH.REFRESH];
 
 interface RetriableConfig extends InternalAxiosRequestConfig {
   _retriedAfterRefresh?: boolean;
@@ -58,12 +48,11 @@ interface RetriableConfig extends InternalAxiosRequestConfig {
 
 let refreshPromise: Promise<string> | null = null;
 
-// Coalesces concurrent 401s into a single `/auth/refresh` call rather than
-// firing one per failed request.
+// Coalesces concurrent 401s into a single `/auth/refresh` call.
 function refreshAccessToken(): Promise<string> {
   if (!refreshPromise) {
     refreshPromise = apiClient
-      .post<{ token: string }>('/auth/refresh')
+      .post<{ token: string }>(ROUTES.API.AUTH.REFRESH)
       .then((response) => response.data.token)
       .finally(() => {
         refreshPromise = null;
@@ -87,10 +76,7 @@ apiClient.interceptors.response.use(
           config.headers.set('Authorization', `Bearer ${token}`);
           return apiClient(config);
         } catch {
-          // Refresh itself failed (no/expired/revoked refresh cookie) — the
-          // session is genuinely over, not just this one request. Notify
-          // `AuthProvider` so it clears stale local state and redirects,
-          // then fall through to the normal error rejection below.
+          // Refresh failed — notify AuthProvider, then fall through to the rejection below.
           onSessionExpired?.();
         }
       }
@@ -108,9 +94,7 @@ export function authHeader(token?: string | null): Record<string, string> {
   return token ? { Authorization: `Bearer ${token}` } : {};
 }
 
-// Repeated at every mutation error handler that wants to show the server's
-// own message when there is one — an `ApiError` — and a generic fallback
-// otherwise (a network error, or something that never reached the server).
+// Shows the server's own message for an `ApiError`, otherwise a generic fallback.
 export function getErrorMessage(err: unknown, fallback: string): string {
   return err instanceof ApiError ? err.message : fallback;
 }

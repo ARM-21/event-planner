@@ -13,6 +13,7 @@ import { useEvents } from '../query/events/use-events';
 import { useTags } from '../query/tags/use-tags';
 import { Button, Select } from '../components/ui';
 import { AppShell } from '../components/AppShell';
+import { ROUTES } from '../config/routes';
 import { EventCard } from '../components/EventCard';
 import { Pagination } from '../components/Pagination';
 
@@ -62,9 +63,7 @@ export default function EventsPage() {
 
   function handleStatusChange(next: 'upcoming' | 'past') {
     setStatus(next);
-    // Only flip the date-sort default (soonest-first for Upcoming,
-    // latest-first for Past) — if the user has explicitly picked a
-    // popularity sort, switching tabs shouldn't silently overwrite it.
+    // Only flip the date-sort default — don't overwrite an explicit popularity sort.
     if (sort === 'starts_at' || sort === '-starts_at') {
       setValue('sort', next === 'upcoming' ? 'starts_at' : '-starts_at');
     }
@@ -113,7 +112,7 @@ export default function EventsPage() {
         <div className="flex flex-wrap items-center justify-between gap-4">
           <h1 className="text-2xl font-bold text-gray-900">Events</h1>
           {user && (
-            <Button onClick={() => navigate('/events/new')} className="gap-1.5">
+            <Button onClick={() => navigate(ROUTES.EVENT_NEW)} className="gap-1.5">
               <Plus className="h-4 w-4" aria-hidden="true" />
               Create event
             </Button>
@@ -269,7 +268,7 @@ export default function EventsPage() {
                   key={event.id}
                   event={event}
                   isOwner={user?.id === event.creatorId}
-                  onEdit={() => navigate(`/events/${event.id}/edit`)}
+                  onEdit={() => navigate(ROUTES.EVENT_EDIT(event.id))}
                   onDelete={() => handleDelete(event.id)}
                   deleteDisabled={deleteMutation.isPending}
                 />

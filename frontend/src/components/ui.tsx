@@ -35,9 +35,7 @@ export const Input = forwardRef<HTMLInputElement, InputHTMLAttributes<HTMLInputE
   );
 });
 
-// Same as Input, plus a show/hide toggle button — the input's own
-// ref/value/onChange wiring is untouched, so it drops into a
-// react-hook-form `register(...)` exactly like a plain Input would.
+// Same as Input, plus a show/hide toggle — drops into react-hook-form's `register(...)` unchanged.
 export const PasswordInput = forwardRef<HTMLInputElement, InputHTMLAttributes<HTMLInputElement>>(
   function PasswordInput({ className = '', ...props }, ref) {
     const [visible, setVisible] = useState(false);
@@ -141,8 +139,7 @@ export function Field({
   );
 }
 
-// Styled banner for a form-level error (e.g. "Invalid email or password"),
-// as opposed to Field's per-input error text.
+// Styled banner for a form-level error, as opposed to Field's per-input error text.
 export function ErrorBanner({ children }: { children: ReactNode }) {
   return (
     <div role="alert" className="flex items-start gap-2 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">

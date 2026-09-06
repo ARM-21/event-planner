@@ -22,8 +22,7 @@ function CalendarLogo({ className = '' }: { className?: string }) {
   );
 }
 
-// Decorative line-art of people sitting around a table, purely visual —
-// no data or state, just sets the tone for the brand panel.
+// Decorative line-art of people around a table — purely visual.
 function EventIllustration({ className = '' }: { className?: string }) {
   return (
     <svg
@@ -59,13 +58,7 @@ function EventIllustration({ className = '' }: { className?: string }) {
   );
 }
 
-/**
- * Two-column layout shared by the login and register pages: a branded
- * panel on the left (logo, tagline, illustration) and whatever form the
- * page passes in on the right. Purely presentational — pages keep
- * complete control over their own form logic and just supply it via
- * `children`.
- */
+// Two-column layout shared by login/register: branded panel left, `children` form on the right.
 export function AuthLayout({ children }: { children: ReactNode }) {
   return (
     <div className="flex min-h-screen bg-white">
@@ -85,9 +78,7 @@ export function AuthLayout({ children }: { children: ReactNode }) {
         <EventIllustration className="mt-12 w-full max-w-sm text-indigo-300" />
       </div>
       <div className="flex flex-1 items-center justify-center px-4 py-12 sm:px-6 lg:px-8">
-        {/* A card surface (rounded, distinct fill) without a shadow or
-            border — separates the form from the page visually through
-            fill contrast alone rather than an outline/elevation. */}
+        {/* Fill contrast separates the form, no shadow/border needed. */}
         <div className="w-full max-w-sm rounded-2xl bg-gray-50 p-8">{children}</div>
       </div>
     </div>

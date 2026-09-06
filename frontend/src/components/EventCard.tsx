@@ -3,6 +3,7 @@ import { Calendar, Clock, Globe, Lock, MapPin, Pencil, Trash2 } from 'lucide-rea
 import type { EventItem } from '../api/events/types';
 import { formatEventRange } from '../lib/formatEventRange';
 import { tagPillClass, coverGradientClass } from '../lib/tagStyle';
+import { ROUTES } from '../config/routes';
 
 function DateBadge({ startsAt }: { startsAt: string }) {
   const date = new Date(startsAt);
@@ -17,13 +18,7 @@ function DateBadge({ startsAt }: { startsAt: string }) {
   );
 }
 
-/**
- * One event's summary card in the grid: a decorative cover (there's no
- * event-photo field in the data, so this is an abstract gradient + icon
- * standing in for one, not a fake photo), the date, title, when/where, and
- * its tags/visibility. Edit and delete only render for the event's own
- * creator, same ownership check the page always applied.
- */
+// One event's summary card; edit/delete only render for the event's own creator.
 export function EventCard({
   event,
   isOwner,
@@ -69,7 +64,7 @@ export function EventCard({
 
       <div className="flex flex-1 flex-col gap-2 p-4">
         <h3 className="font-semibold text-gray-900">
-          <Link to={`/events/${event.id}`} className="hover:text-indigo-600">
+          <Link to={ROUTES.EVENT_DETAIL(event.id)} className="hover:text-indigo-600">
             {event.title}
           </Link>
         </h3>

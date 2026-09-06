@@ -1,7 +1,4 @@
-// Deterministic (same tag name -> same color, every render) but varied
-// pill colors for tags, so a grid of event cards stays scannable by
-// category at a glance without needing a fixed color per tag name (tags
-// are user-defined, so there's no fixed list to map ahead of time).
+// Deterministic (same tag name -> same color) pill colors, since tags are user-defined with no fixed list.
 const TAG_COLORS = [
   'bg-indigo-50 text-indigo-700',
   'bg-sky-50 text-sky-700',
@@ -13,9 +10,7 @@ const TAG_COLORS = [
   'bg-teal-50 text-teal-700',
 ];
 
-// Decorative cover-band gradients for cards, keyed the same way — there's
-// no real event photo in the data model, so this stands in as an abstract
-// per-event visual anchor instead of a stock photo pretending to be one.
+// Decorative cover-band gradients, keyed the same way — stands in for a real event photo.
 const COVER_GRADIENTS = [
   'from-indigo-500 to-violet-500',
   'from-sky-500 to-cyan-400',

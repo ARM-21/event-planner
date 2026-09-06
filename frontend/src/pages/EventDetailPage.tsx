@@ -11,6 +11,7 @@ import { useAuth } from '../contexts/auth';
 import { useEvent } from '../query/events/use-event';
 import { formatEventRange } from '../lib/formatEventRange';
 import { tagPillClass, coverGradientClass } from '../lib/tagStyle';
+import { ROUTES } from '../config/routes';
 import { AppShell } from '../components/AppShell';
 import { Button, Card } from '../components/ui';
 
@@ -28,7 +29,7 @@ export default function EventDetailPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['events'] });
       toast.success('Event deleted');
-      navigate('/events');
+      navigate(ROUTES.EVENTS);
     },
     onError: (err) => toast.error(getErrorMessage(err, 'Failed to delete event.')),
   });
@@ -50,8 +51,7 @@ export default function EventDetailPage() {
     onError: (err) => toast.error(getErrorMessage(err, 'Failed to update RSVP.')),
   });
 
-  // Clicking the already-selected option clears it back to "no response",
-  // same toggle pattern as the visibility/tag filter pills on EventsPage.
+  // Clicking the already-selected option clears it back to "no response".
   function handleRsvp(status: RsvpStatus, currentStatus: RsvpStatus | null | undefined) {
     if (currentStatus === status) {
       clearRsvpMutation.mutate();
@@ -60,13 +60,7 @@ export default function EventDetailPage() {
     }
   }
 
-  // Hand-styled rather than the shared `Button` component: three mutually
-  // exclusive states read more like the filter pills on EventsPage than a
-  // primary/secondary/danger action, and "maybe" has no natural Button
-  // variant to reuse — plus overriding a variant's color via an appended
-  // className isn't reliable (Tailwind's compiled class order, not the
-  // className string's order, decides which utility wins; see the Select
-  // width fix in AppShell/EventsPage for the same pitfall).
+  // Hand-styled rather than the shared `Button` component — three mutually exclusive states, no matching variant.
   const rsvpButtonBaseClass =
     'inline-flex items-center gap-1.5 rounded-md px-4 py-2 text-sm font-medium transition disabled:cursor-not-allowed disabled:opacity-50';
   const rsvpButtonInactiveClass = 'bg-gray-100 text-gray-700 hover:bg-gray-200';
@@ -93,7 +87,7 @@ export default function EventDetailPage() {
       <AppShell>
         <Card className="mx-auto max-w-sm text-center">
           <p className="text-gray-700">{message}</p>
-          <Link to="/events" className="mt-4 inline-block text-sm font-medium text-indigo-600 hover:text-indigo-500">
+          <Link to={ROUTES.EVENTS} className="mt-4 inline-block text-sm font-medium text-indigo-600 hover:text-indigo-500">
             Back to events
           </Link>
         </Card>
@@ -109,7 +103,7 @@ export default function EventDetailPage() {
       <div className="space-y-6">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <Link
-            to="/events"
+            to={ROUTES.EVENTS}
             className="inline-flex items-center gap-1.5 text-sm font-medium text-gray-500 hover:text-gray-700"
           >
             <ArrowLeft className="h-4 w-4" aria-hidden="true" />
@@ -117,7 +111,7 @@ export default function EventDetailPage() {
           </Link>
           {isOwner && (
             <div className="flex shrink-0 gap-2">
-              <Button variant="secondary" onClick={() => navigate(`/events/${event.id}/edit`)} className="gap-1.5">
+              <Button variant="secondary" onClick={() => navigate(ROUTES.EVENT_EDIT(event.id))} className="gap-1.5">
                 <Pencil className="h-4 w-4" aria-hidden="true" />
                 Edit event
               </Button>
