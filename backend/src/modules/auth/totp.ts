@@ -17,3 +17,10 @@ export async function verifyTotpCode(secret: string, code: string): Promise<bool
   const result = await otp.verify({ secret, token: code, epochTolerance: 30 });
   return result.valid;
 }
+
+// Dev convenience only — lets us read the currently-valid code off the
+// server console instead of an authenticator app. Callers must gate this
+// on env.nodeEnv !== 'production'.
+export async function getCurrentTotpCode(secret: string): Promise<string> {
+  return otp.generate({ secret });
+}

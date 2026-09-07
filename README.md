@@ -125,8 +125,8 @@ npm install   # at the repo root — sets up a pre-commit hook that typechecks b
   lazy delete-on-lookup) once the table grows unbounded.
 - **Email verification is a soft gate.** An unverified account can log in and use the app fully;
   the UI just shows a dismissible-by-action banner nudging verification, rather than blocking
-  access. Verification links are logged to the backend console in dev instead of actually
-  emailed, since no SMTP/email-provider credentials were in scope.
+  access. `services/mailer.ts` sends through Resend when `RESEND_API_KEY` is set; without it
+  (the default in dev), verification links are just logged to the backend console instead.
 - **Any authenticated user may RSVP to any event they can already view** — including their own,
   though the UI doesn't surface the RSVP control to an event's creator, since RSVPing to your
   own event isn't a meaningful action. There's no invitation system gating who's "allowed" to

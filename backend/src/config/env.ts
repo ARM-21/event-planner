@@ -24,4 +24,7 @@ export const env = {
     .map((origin) => origin.trim())
     .filter(Boolean),
   trustProxy: process.env.TRUST_PROXY === '1',
+  // Unset in dev: mailer.ts falls back to console-logging instead of sending.
+  resendApiKey: process.env.RESEND_API_KEY,
+  emailFrom: process.env.EMAIL_FROM ?? 'Evently <onboarding@resend.dev>',
 };

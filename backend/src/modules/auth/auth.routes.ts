@@ -6,6 +6,7 @@ import { env } from '../../config/env';
 import { requireAuth } from '../../middleware/auth';
 import { twoFactorEnableLimiter, twoFactorVerifyLimiter } from '../../middleware/rateLimit';
 import { badRequest, conflict, unauthorized } from '../../utils/errors';
+import { logger } from '../../utils/logger';
 import { zodIssuesToDetails } from '../../utils/validation';
 import {
   registerSchema,
@@ -15,7 +16,7 @@ import {
   disableTwoFactorSchema,
 } from './auth.schemas';
 import { createVerificationToken, consumeVerificationToken } from './email-verification';
-import { sendVerificationEmail } from './mailer';
+import { sendVerificationEmail } from '../../services/mailer';
 import {
   toPublicUser,
   findUserByEmail,
@@ -26,7 +27,7 @@ import {
   disableTwoFactor,
 } from './auth.service';
 import { createRefreshToken, rotateRefreshToken, revokeRefreshToken, type SessionMeta } from './refresh-tokens.service';
-import { generateTotpSecret, generateTotpQrCode, verifyTotpCode } from './totp';
+import { generateTotpSecret, generateTotpQrCode, verifyTotpCode, getCurrentTotpCode } from './totp';
 
 const router = Router();
 
@@ -36,7 +37,7 @@ const REFRESH_COOKIE_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
 
 async function issueVerificationEmail(userId: number, email: string): Promise<void> {
   const rawToken = await createVerificationToken(userId);
-  sendVerificationEmail(email, `${env.frontendUrl}/verify-email?token=${rawToken}`);
+  await sendVerificationEmail(email, `${env.frontendUrl}/verify-email?token=${rawToken}`);
 }
 
 function issueAccessToken(userId: number): string {
@@ -138,6 +139,9 @@ router.post('/login', async (req, res, next) => {
     }
 
     if (user.two_factor_enabled) {
+      if (env.nodeEnv !== 'production' && user.totp_secret) {
+        logger.info('[dev] 2FA code', { email: user.email, code: await getCurrentTotpCode(user.totp_secret) });
+      }
       const preAuthToken = issuePreAuthToken(user.id);
       res.status(200).json({ twoFactorRequired: true, preAuthToken });
       return;
@@ -167,6 +171,9 @@ router.post('/2fa/setup', requireAuth, async (req, res, next) => {
     const secret = generateTotpSecret();
     await setTotpSecret(user.id, secret);
     const qrCodeDataUrl = await generateTotpQrCode(user.email, secret);
+    if (env.nodeEnv !== 'production') {
+      logger.info('[dev] 2FA code', { email: user.email, code: await getCurrentTotpCode(secret) });
+    }
     res.status(200).json({ secret, qrCodeDataUrl });
   } catch (err) {
     next(err);
