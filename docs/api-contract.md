@@ -80,10 +80,65 @@ Errors: `400` validation (missing/short fields), `409` email already registered.
 
 Request: `{ "email": "ada@example.com", "password": "..." }`
 
-Response `200`: same shape as register.
+Response `200`: same shape as register — **unless** the account has 2FA
+enabled, in which case it's instead
+`{ "twoFactorRequired": true, "preAuthToken": "<jwt>" }` (see "Two-factor
+authentication" below).
 
 Errors: `400` validation, `401` invalid credentials (same message whether the
 email doesn't exist or the password is wrong — don't leak which).
+
+## Two-factor authentication
+
+TOTP-based (RFC 6238, the same algorithm Google Authenticator/Authy/etc.
+implement) and opt-in. Four endpoints, plus one change to `login`'s
+behavior on a 2FA-enabled account.
+
+- **Enrollment** — `POST /auth/2fa/setup` (auth required) generates a new
+  secret, saves it *without* enabling 2FA yet, and returns
+  `{ "secret": "<base32>", "qrCodeDataUrl": "data:image/png;base64,..." }`.
+  The frontend shows the QR (scan with an authenticator app) and the raw
+  secret (manual entry fallback). `409` if 2FA is already enabled — disable
+  it first to re-configure.
+- **Confirmation** — `POST /auth/2fa/enable` (auth required),
+  `{ "code": "123456" }`. Verifies the code against the secret `/setup`
+  just saved, and only then flips `two_factor_enabled` on. This
+  confirmation step exists so a failed/abandoned QR scan can't silently
+  lock the user out — 2FA never turns on until they've proven the code
+  actually works. `400` if `/setup` was never called; `401` on a wrong code.
+- **Turning it off** — `POST /auth/2fa/disable` (auth required),
+  `{ "password": "..." }`. Requires the current password, not just a valid
+  access token — otherwise a stolen/compromised access token could
+  silently strip 2FA off the account, defeating the point of having it.
+  Clears both `two_factor_enabled` and the stored secret; response `204`.
+  `401` on an incorrect password.
+- **Login's second step** — when `login` returns `twoFactorRequired`, the
+  frontend collects a code and calls `POST /auth/2fa/verify`,
+  `{ "preAuthToken": "<jwt from login>", "code": "123456" }`. On success,
+  responds `200` with the same `{ user, token }` shape (and sets the
+  refresh cookie) as a normal login — this is genuinely the point identity
+  is established, not `login` itself. `401` on an invalid/expired
+  pre-auth token or a wrong code.
+
+The pre-auth token is a real JWT but a deliberately weak one: 5-minute
+expiry, `type: 'pre_auth'` (rejected by `requireAuth`, which only accepts
+`type: 'access'` — the same type-tagging mechanism that keeps refresh
+tokens from being usable as access tokens also keeps a pre-auth token from
+being usable as either). It proves only "this caller knows the password";
+`/2fa/verify` is what proves "and controls the second factor too."
+
+Code verification tolerates ±30 seconds of clock drift between the server
+and the authenticator app (`epochTolerance: 30` in `otplib`). All of
+`/auth/2fa/*` inherits the general auth-endpoint rate limit (10
+requests/15min per IP, failed requests only) — but `/2fa/verify` and
+`/2fa/enable` specifically, the two endpoints that accept a code guess,
+each *also* carry their own tighter limiter on top: **5 requests/minute
+per IP** (also failed-only) — two independent limiter instances, one per
+endpoint, not one shared budget, so exhausting one doesn't block the
+other. A 15-minute-scale budget makes sense for password attempts; it's
+far too loose for a 6-digit code, so the
+code-guessing endpoints get their own faster-resetting one instead of
+sharing the password-oriented budget.
 
 ### `POST /api/auth/verify-email`
 

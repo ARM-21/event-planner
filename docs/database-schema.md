@@ -18,6 +18,8 @@ users >── event_rsvps ──< events   (one row per user per event)
 | `password_hash` | VARCHAR(255)        | NOT NULL                    |
 | `email_verified_at` | DATETIME        | NULL — set once the emailed link is confirmed |
 | `token_version` | INT UNSIGNED        | NOT NULL, default `0` — see below |
+| `totp_secret`   | VARCHAR(64)         | NULL — base32 TOTP secret, set by `POST /auth/2fa/setup` |
+| `two_factor_enabled` | BOOLEAN        | NOT NULL, default `false` |
 | `created_at`    | DATETIME            | NOT NULL, default now (UTC) |
 | `updated_at`    | DATETIME            | NOT NULL, default now (UTC), auto-updated |
 
@@ -29,6 +31,14 @@ immediately invalidates every outstanding refresh token for that user
 it besides that one endpoint, but any other action that should force
 re-authentication everywhere (e.g. a future change-password endpoint)
 can reuse the same bump.
+
+`totp_secret` is written by `/auth/2fa/setup` but doesn't turn anything on
+by itself — `two_factor_enabled` only flips to `true` once `/auth/2fa/enable`
+confirms the user can generate a valid code from it. A login on a
+2FA-enabled account gets a short-lived pre-auth token instead of real
+tokens; trading that plus a valid code for real tokens happens at
+`/auth/2fa/verify`. See "Two-factor authentication" in
+`docs/api-contract.md` for the full flow.
 
 
 ## events
