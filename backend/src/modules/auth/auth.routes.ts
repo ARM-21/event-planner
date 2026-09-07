@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import type { Response } from 'express';
+import type { Request, Response } from 'express';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { env } from '../../config/env';
@@ -21,11 +21,11 @@ import {
   findUserByEmail,
   findUserById,
   createUser,
-  incrementTokenVersion,
   setTotpSecret,
   enableTwoFactor,
   disableTwoFactor,
 } from './auth.service';
+import { createRefreshToken, rotateRefreshToken, revokeRefreshToken, type SessionMeta } from './refresh-tokens.service';
 import { generateTotpSecret, generateTotpQrCode, verifyTotpCode } from './totp';
 
 const router = Router();
@@ -39,22 +39,19 @@ async function issueVerificationEmail(userId: number, email: string): Promise<vo
   sendVerificationEmail(email, `${env.frontendUrl}/verify-email?token=${rawToken}`);
 }
 
-// `ver` ties the token to token_version so bumping it revokes outstanding
-// refresh tokens; `type` stops a refresh token being used as an access token.
-function issueTokens(userId: number, tokenVersion: number): { accessToken: string; refreshToken: string } {
-  const accessToken = jwt.sign({ sub: userId, ver: tokenVersion, type: 'access' }, env.jwtSecret, {
-    expiresIn: '15m',
-  });
-  const refreshToken = jwt.sign({ sub: userId, ver: tokenVersion, type: 'refresh' }, env.jwtSecret, {
-    expiresIn: '30d',
-  });
-  return { accessToken, refreshToken };
+function issueAccessToken(userId: number): string {
+  return jwt.sign({ sub: userId, type: 'access' }, env.jwtSecret, { expiresIn: '15m' });
 }
 
 // Issued after password check on a 2FA account; short-lived and rejected
 // by requireAuth, only accepted by POST /2fa/verify.
 function issuePreAuthToken(userId: number): string {
   return jwt.sign({ sub: userId, type: 'pre_auth' }, env.jwtSecret, { expiresIn: '5m' });
+}
+
+function sessionMeta(req: Request): SessionMeta {
+  const ua = req.headers['user-agent'];
+  return { deviceLabel: typeof ua === 'string' ? ua.slice(0, 255) : null, ip: req.ip ?? null };
 }
 
 function setRefreshCookie(res: Response, refreshToken: string): void {
@@ -71,6 +68,15 @@ function setRefreshCookie(res: Response, refreshToken: string): void {
 
 function clearRefreshCookie(res: Response): void {
   res.clearCookie(REFRESH_COOKIE_NAME, { path: REFRESH_COOKIE_PATH });
+}
+
+// Access token + a new refresh_tokens row for this device, cookie set —
+// the one path register/login/2fa-verify all share.
+async function startSession(req: Request, res: Response, userId: number): Promise<string> {
+  const accessToken = issueAccessToken(userId);
+  const refreshToken = await createRefreshToken(userId, sessionMeta(req));
+  setRefreshCookie(res, refreshToken);
+  return accessToken;
 }
 
 router.post('/register', async (req, res, next) => {
@@ -96,8 +102,7 @@ router.post('/register', async (req, res, next) => {
     const passwordHash = await bcrypt.hash(password, 10);
     const id = await createUser({ name, email, passwordHash });
     await issueVerificationEmail(id, email);
-    const { accessToken, refreshToken } = issueTokens(id, 0);
-    setRefreshCookie(res, refreshToken);
+    const accessToken = await startSession(req, res, id);
     res.status(201).json({ user: { id, name, email, emailVerified: false, twoFactorEnabled: false }, token: accessToken });
   } catch (err) {
     next(err);
@@ -138,8 +143,7 @@ router.post('/login', async (req, res, next) => {
       return;
     }
 
-    const { accessToken, refreshToken } = issueTokens(user.id, user.token_version);
-    setRefreshCookie(res, refreshToken);
+    const accessToken = await startSession(req, res, user.id);
     res.status(200).json({ user: toPublicUser(user), token: accessToken });
   } catch (err) {
     next(err);
@@ -266,8 +270,7 @@ router.post('/2fa/verify', twoFactorVerifyLimiter, async (req, res, next) => {
       return;
     }
 
-    const { accessToken, refreshToken } = issueTokens(user.id, user.token_version);
-    setRefreshCookie(res, refreshToken);
+    const accessToken = await startSession(req, res, user.id);
     res.status(200).json({ user: toPublicUser(user), token: accessToken });
   } catch {
     next(unauthorized('Invalid or expired 2FA session'));
@@ -284,50 +287,34 @@ router.post('/refresh', async (req, res, next) => {
   }
 
   try {
-    const payload = jwt.verify(token, env.jwtSecret);
-    if (typeof payload === 'string' || payload.type !== 'refresh') {
+    const result = await rotateRefreshToken(token, sessionMeta(req));
+
+    if (result.status === 'reused') {
+      clearRefreshCookie(res);
+      next(unauthorized('Refresh token reuse detected — all sessions revoked, please log in again'));
+      return;
+    }
+    if (result.status === 'invalid') {
       next(unauthorized('Invalid or expired refresh token'));
       return;
     }
 
-    const userId = Number(payload.sub);
-    if (!payload.sub || Number.isNaN(userId)) {
-      next(unauthorized('Invalid or expired refresh token'));
-      return;
-    }
-
-    // A version mismatch means this token was revoked (e.g. by logout).
-    const user = await findUserById(userId);
-    if (!user || payload.ver !== user.token_version) {
-      next(unauthorized('Invalid or expired refresh token'));
-      return;
-    }
-
-    const { accessToken, refreshToken } = issueTokens(user.id, user.token_version);
-    setRefreshCookie(res, refreshToken);
-    res.status(200).json({ token: accessToken });
-  } catch {
-    next(unauthorized('Invalid or expired refresh token'));
+    setRefreshCookie(res, result.rawToken);
+    res.status(200).json({ token: issueAccessToken(result.userId) });
+  } catch (err) {
+    next(err);
   }
 });
 
-// Bumps token_version to revoke every outstanding refresh token. Not
-// requireAuth-gated: still needs to work with an expired access token, so
-// identity is read from the refresh cookie itself (ignoring its own
-// expiration — a missing/invalid cookie just means nothing to revoke).
+// Revokes only this device's refresh_tokens row, not every session — other
+// logged-in devices stay signed in. Not requireAuth-gated: still needs to
+// work with an expired access token, since forgetting a long-lived refresh
+// cookie behind is exactly the case logout needs to cover.
 router.post('/logout', async (req, res, next) => {
   const token = req.cookies?.[REFRESH_COOKIE_NAME];
   try {
     if (typeof token === 'string') {
-      try {
-        const payload = jwt.verify(token, env.jwtSecret, { ignoreExpiration: true });
-        const userId = typeof payload !== 'string' ? Number(payload.sub) : NaN;
-        if (!Number.isNaN(userId)) {
-          await incrementTokenVersion(userId);
-        }
-      } catch {
-        // malformed/unsigned cookie — nothing to revoke
-      }
+      await revokeRefreshToken(token);
     }
     clearRefreshCookie(res);
     res.status(204).send();

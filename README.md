@@ -74,14 +74,15 @@ npm install   # at the repo root — sets up a pre-commit hook that typechecks b
   stay close to the SQL actually being run, which matters for the pagination/filtering/sorting
   logic in `GET /api/events` (dynamic `WHERE`/`ORDER BY` composition, a subquery for
   popularity sort) that would be awkward to express through most ORMs' abstractions anyway.
-- **JWT access + refresh, not a single long-lived token.** A 15-minute access token is trusted
-  statelessly (no DB hit per request); a 30-day refresh token lives in an **httpOnly cookie**
-  (never touched by JS) and is the only thing checked against the DB (`users.token_version`) —
-  once per refresh, not once per request. Logging out bumps `token_version`, instantly revoking
-  every outstanding refresh token. Deliberately scoped to a single global counter rather than a
-  per-session `refresh_tokens` table — real revocation without per-device tracking, session
-  listing, or reuse detection, none of which this app currently needs. See `docs/api-contract.md`
-  for the full token lifecycle.
+- **JWT access + a `refresh_tokens` table, not one long-lived token.** A 15-minute access token
+  is trusted statelessly (no DB hit per request); a 30-day refresh token is an opaque random
+  value in an **httpOnly cookie** (never touched by JS), backed by a per-session DB row (hash,
+  device label, IP, expiry, revocation state) — checked once per refresh, not once per request.
+  Every refresh **rotates** the token and links the old row to the new one via `replaced_by_id`,
+  which enables **reuse detection**: presenting a token that's already been rotated past can only
+  mean it leaked, so that revokes every session for the user, not just the one in use. Logout
+  revokes only the calling device's row — other sessions stay signed in. See
+  `docs/database-schema.md` (`refresh_tokens`) and `docs/api-contract.md` for the full lifecycle.
 - **Existence-hiding for private events.** A non-owner hitting a private event's `GET`/`PUT`/`DELETE`
   gets `404`, not `403` — a `403` would confirm the event exists to someone who can't even see it.
 - **Tags are freeform and implicit.** No standalone "create tag" endpoint; tag names are
@@ -101,9 +102,9 @@ npm install   # at the repo root — sets up a pre-commit hook that typechecks b
   at `/api/docs` directly from the running server.
 - **2FA via a pre-auth token, not a second full login.** A password check on a 2FA-enabled
   account issues a short-lived (5 min), narrowly-typed `pre_auth` JWT instead of real tokens —
-  `requireAuth` rejects it outright (same `type` tagging that already separates access from
-  refresh tokens), so it's useless for anything except `POST /auth/2fa/verify`, which is what
-  actually issues the real access/refresh pair once the TOTP code checks out. `otplib` generates
+  `requireAuth` rejects it outright (it only accepts `type: 'access'`), so it's useless for
+  anything except `POST /auth/2fa/verify`, which is what actually issues the real access token
+  and refresh session once the TOTP code checks out. `otplib` generates
   the secret and verifies codes (RFC 6238, ±30s clock-drift tolerance); `qrcode` turns the
   `otpauth://` URI into a scannable PNG so the frontend needs no QR library of its own.
   Enrollment requires one successful code before `two_factor_enabled` flips on, so an
@@ -114,11 +115,14 @@ npm install   # at the repo root — sets up a pre-commit hook that typechecks b
 
 ## Assumptions
 
-- **Session revocation is per-user, not per-device.** Logging out (or any future
-  password-change flow) invalidates *every* device's refresh token at once, since there's one
-  `token_version` counter per user rather than one row per issued token. Acceptable tradeoff for
-  this app's scope; a `refresh_tokens` table would be the upgrade path if per-device "sign out
-  this device only" became a real requirement.
+- **No session-management UI.** The `refresh_tokens` table already tracks enough per-device data
+  (device label, IP, last issued) to list active sessions and let a user revoke one individually,
+  but there's no `GET /auth/sessions`-style endpoint or frontend page for it yet — logout only
+  ever acts on the calling device's own session. Straightforward to add on top of the existing
+  table if it became a real requirement.
+- **No cleanup job for expired/revoked refresh tokens.** Rows accumulate rather than being
+  deleted — fine at this app's scale, but a real deployment would want a periodic sweep (or a
+  lazy delete-on-lookup) once the table grows unbounded.
 - **Email verification is a soft gate.** An unverified account can log in and use the app fully;
   the UI just shows a dismissible-by-action banner nudging verification, rather than blocking
   access. Verification links are logged to the backend console in dev instead of actually

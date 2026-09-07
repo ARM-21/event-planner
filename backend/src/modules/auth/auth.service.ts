@@ -6,7 +6,6 @@ export interface UserRow {
   email: string;
   password_hash: string;
   email_verified_at: Date | string | null;
-  token_version: number;
   totp_secret: string | null;
   two_factor_enabled: boolean | number;
 }
@@ -34,10 +33,6 @@ export async function findUserById(id: number): Promise<UserRow | undefined> {
 export async function createUser(input: { name: string; email: string; passwordHash: string }): Promise<number> {
   const [id] = await db('users').insert({ name: input.name, email: input.email, password_hash: input.passwordHash });
   return id;
-}
-
-export async function incrementTokenVersion(userId: number): Promise<void> {
-  await db('users').where({ id: userId }).increment('token_version', 1);
 }
 
 export async function setTotpSecret(userId: number, secret: string): Promise<void> {
