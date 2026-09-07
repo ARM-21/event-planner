@@ -39,8 +39,21 @@ export function setSessionExpiredListener(listener: SessionExpiredListener | nul
   onSessionExpired = listener;
 }
 
-// Endpoints that must never trigger a refresh-and-retry themselves.
-const AUTH_ENDPOINTS_WITHOUT_REFRESH = [ROUTES.API.AUTH.LOGIN, ROUTES.API.AUTH.REGISTER, ROUTES.API.AUTH.REFRESH];
+// Endpoints that must never trigger a refresh-and-retry themselves. Also
+// includes `VERIFY_2FA` — it doesn't use an access token at all (identity
+// comes from the pre-auth token in the body), so its 401 always means "wrong
+// code," never "your access token expired." Without this exemption, a stray
+// *unrelated* still-valid refresh cookie in the browser (e.g. from an
+// earlier session that was never explicitly logged out) could silently
+// refresh in the background and populate `token` in context — which
+// `GuestRoute` reacts to by redirecting away from `/login`, even though the
+// 2FA code the user actually typed was wrong and login never completed.
+const AUTH_ENDPOINTS_WITHOUT_REFRESH = [
+  ROUTES.API.AUTH.LOGIN,
+  ROUTES.API.AUTH.REGISTER,
+  ROUTES.API.AUTH.REFRESH,
+  ROUTES.API.AUTH.VERIFY_2FA,
+];
 
 interface RetriableConfig extends InternalAxiosRequestConfig {
   _retriedAfterRefresh?: boolean;

@@ -1,10 +1,3 @@
-/**
- * The app's error types, plus one convenience function per HTTP status
- * code it uses. A route calls e.g. `notFound()` or `badRequest(...)` and
- * passes the result to `next(err)`; the error handler middleware then
- * turns it into the right HTTP response.
- */
-
 export interface FieldError {
   field: string;
   message: string;

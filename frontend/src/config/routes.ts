@@ -7,6 +7,7 @@ export const ROUTES = {
   EVENT_NEW: '/events/new',
   EVENT_DETAIL: (id: string | number) => `/events/${id}`,
   EVENT_EDIT: (id: string | number) => `/events/${id}/edit`,
+  SECURITY: '/security',
 
   API: {
     AUTH: {
@@ -16,6 +17,10 @@ export const ROUTES = {
       LOGOUT: '/auth/logout',
       VERIFY_EMAIL: '/auth/verify-email',
       RESEND_VERIFICATION: '/auth/resend-verification',
+      SETUP_2FA: '/auth/2fa/setup',
+      ENABLE_2FA: '/auth/2fa/enable',
+      DISABLE_2FA: '/auth/2fa/disable',
+      VERIFY_2FA: '/auth/2fa/verify',
     },
     EVENTS: {
       // Same URL repeated by intent — REST convention, method distinguishes them.

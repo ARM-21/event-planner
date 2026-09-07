@@ -1,10 +1,3 @@
-/**
- * Validation rules for the register/login request bodies, using zod.
- * These run before any database or business logic — if the input doesn't
- * match, the request is rejected with a 400 and a per-field error message
- * before touching the database at all.
- */
-
 import { z } from 'zod';
 
 const emailSchema = z.string().trim().toLowerCase().max(255).pipe(z.email('invalid email'));
@@ -17,5 +10,20 @@ export const registerSchema = z.object({
 
 export const loginSchema = z.object({
   email: emailSchema,
+  password: z.string().min(1, 'password is required'),
+});
+
+const totpCode = z.string().regex(/^\d{6}$/, 'code must be 6 digits');
+
+export const enableTwoFactorSchema = z.object({
+  code: totpCode,
+});
+
+export const verifyTwoFactorSchema = z.object({
+  preAuthToken: z.string().min(1, 'preAuthToken is required'),
+  code: totpCode,
+});
+
+export const disableTwoFactorSchema = z.object({
   password: z.string().min(1, 'password is required'),
 });

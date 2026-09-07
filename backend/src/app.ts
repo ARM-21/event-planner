@@ -1,14 +1,3 @@
-/**
- * Express application setup.
- *
- * This file wires together everything the API needs on every request:
- * security headers, CORS, request logging, rate limiting, the actual
- * routes (auth/events/tags), the Swagger docs page, and the fallback
- * 404/error handling that runs when nothing else matches. `server.ts` is
- * what actually starts this app listening on a port — this file only
- * builds it.
- */
-
 import express from 'express';
 import cors from 'cors';
 import cookieParser from 'cookie-parser';
@@ -27,24 +16,16 @@ import { openApiSpec } from './docs/openapi';
 
 export const app = express();
 
-// Only trust X-Forwarded-For when actually deployed behind a proxy/load
-// balancer; otherwise req.ip stays the real socket address, which is what
-// rate-limiting needs to key on correctly.
+// only trust X-Forwarded-For when actually behind a proxy/load balancer
 if (env.trustProxy) {
   app.set('trust proxy', 1);
 }
 
-// CSP is left off: this is a JSON API plus the swagger-ui-express docs page,
-// which relies on inline scripts/styles that helmet's default CSP blocks.
-// Every other helmet protection (HSTS, noSniff, frameguard, etc.) stays on.
+// CSP off: swagger-ui-express needs inline scripts/styles it would block
 app.use(helmet({ contentSecurityPolicy: false }));
-// `credentials: true` is required for the browser to send/accept the
-// httpOnly refresh-token cookie cross-origin (frontend and backend run on
-// different ports in dev, and may be on different domains in production).
+// credentials: true so the browser sends/accepts the httpOnly refresh cookie cross-origin
 app.use(cors({ origin: env.corsOrigins, credentials: true }));
 app.use(compression());
-// Small cap: this API has no file-upload endpoints, so a legitimate
-// request body is never more than a few KB.
 app.use(express.json({ limit: '10kb' }));
 app.use(cookieParser());
 app.disable('x-powered-by');
@@ -66,9 +47,6 @@ app.use('/api/auth', authLimiter, authRoutes);
 app.use('/api/events', eventsRoutes);
 app.use('/api/tags', tagsRoutes);
 
-// Unmatched routes fall through to here rather than Express's default HTML
-// 404 page, so every response — matched or not — uses the documented error
-// envelope.
 app.use((_req, res) => {
   res.status(404).json({ error: { message: 'Not found' } });
 });

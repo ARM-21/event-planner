@@ -5,6 +5,7 @@ import EventsPage from './pages/EventsPage.tsx';
 import EventFormPage from './pages/EventFormPage.tsx';
 import EventDetailPage from './pages/EventDetailPage.tsx';
 import VerifyEmailPage from './pages/VerifyEmailPage.tsx';
+import SecurityPage from './pages/SecurityPage.tsx';
 import ProtectedRoute from './components/ProtectedRoute.tsx';
 import GuestRoute from './components/GuestRoute.tsx';
 import { ROUTES } from './config/routes';
@@ -24,6 +25,7 @@ export default function App() {
       <Route element={<ProtectedRoute />}>
         <Route path={ROUTES.EVENT_NEW} element={<EventFormPage />} />
         <Route path="/events/:id/edit" element={<EventFormPage />} />
+        <Route path={ROUTES.SECURITY} element={<SecurityPage />} />
       </Route>
       <Route path="*" element={<Navigate to={ROUTES.EVENTS} replace />} />
     </Routes>

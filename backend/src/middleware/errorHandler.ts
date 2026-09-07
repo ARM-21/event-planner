@@ -1,11 +1,3 @@
-/**
- * Central error handler — the last stop for anything passed to `next(err)`
- * anywhere in the app. Turns whatever error occurred into one consistent
- * JSON response shape (`{ error: { message, details? } }`) with the right
- * HTTP status code, instead of every route having to format its own error
- * response.
- */
-
 import type { NextFunction, Request, Response } from 'express';
 import { AppError } from '../utils/errors';
 import { logger } from '../utils/logger';
@@ -15,9 +7,7 @@ interface StatusError extends Error {
   statusCode?: number;
 }
 
-// body-parser (express.json()/urlencoded()) rejects a malformed request body
-// with an error carrying its own 4xx status, e.g. bad JSON. That's a client
-// mistake, not a server failure, and must not fall through to the 500 below.
+// e.g. malformed JSON from express.json() — a client mistake, not a 500
 function clientErrorStatus(err: StatusError): number | null {
   const status = err.status ?? err.statusCode;
   return typeof status === 'number' && status >= 400 && status < 500 ? status : null;

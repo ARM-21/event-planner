@@ -1,11 +1,3 @@
-/**
- * OpenAPI (Swagger) spec for the API, served interactively at /api/docs.
- * Written by hand as a plain object instead of a YAML file, and kept in
- * sync manually with the real routes as they're built — see
- * docs/api-contract.md in the repo root for the full written-out design
- * this is describing in machine-readable form.
- */
-
 export const openApiSpec = {
   openapi: '3.0.3',
   info: {
@@ -26,6 +18,7 @@ export const openApiSpec = {
           name: { type: 'string' },
           email: { type: 'string', format: 'email' },
           emailVerified: { type: 'boolean' },
+          twoFactorEnabled: { type: 'boolean' },
         },
       },
       AuthResponse: {
@@ -176,6 +169,87 @@ export const openApiSpec = {
           },
           '400': { description: 'Validation failed', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
           '401': { description: 'Invalid credentials', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
+          '429': { description: 'Rate limit exceeded', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
+        },
+      },
+    },
+    '/auth/2fa/setup': {
+      post: {
+        summary: 'Generate a new TOTP secret + QR code (2FA not enabled until /2fa/enable confirms it)',
+        security: [{ bearerAuth: [] }],
+        responses: {
+          '200': {
+            description: 'Secret + QR code generated',
+            content: {
+              'application/json': {
+                schema: { type: 'object', properties: { secret: { type: 'string' }, qrCodeDataUrl: { type: 'string' } } },
+              },
+            },
+          },
+          '401': { description: 'No/invalid token', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
+          '409': { description: '2FA already enabled', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
+          '429': { description: 'Rate limit exceeded', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
+        },
+      },
+    },
+    '/auth/2fa/enable': {
+      post: {
+        summary: 'Confirm setup with a code and turn 2FA on',
+        security: [{ bearerAuth: [] }],
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': { schema: { type: 'object', required: ['code'], properties: { code: { type: 'string', example: '123456' } } } },
+          },
+        },
+        responses: {
+          '200': { description: '2FA enabled', content: { 'application/json': { schema: { type: 'object', properties: { twoFactorEnabled: { type: 'boolean' } } } } } },
+          '400': { description: 'Validation failed, or /2fa/setup was never called', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
+          '401': { description: 'No/invalid token, or wrong code', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
+          '429': { description: 'Rate limit exceeded', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
+        },
+      },
+    },
+    '/auth/2fa/disable': {
+      post: {
+        summary: 'Turn 2FA off and clear the stored secret (requires the current password)',
+        security: [{ bearerAuth: [] }],
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': { schema: { type: 'object', required: ['password'], properties: { password: { type: 'string' } } } },
+          },
+        },
+        responses: {
+          '204': { description: '2FA disabled' },
+          '400': { description: 'Validation failed', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
+          '401': { description: 'No/invalid token, or incorrect password', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
+          '429': { description: 'Rate limit exceeded', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
+        },
+      },
+    },
+    '/auth/2fa/verify': {
+      post: {
+        summary: "Second login step for a 2FA account: trade a pre-auth token + code for real tokens",
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                required: ['preAuthToken', 'code'],
+                properties: { preAuthToken: { type: 'string' }, code: { type: 'string', example: '123456' } },
+              },
+            },
+          },
+        },
+        responses: {
+          '200': {
+            description: 'Logged in',
+            content: { 'application/json': { schema: { $ref: '#/components/schemas/AuthResponse' } } },
+          },
+          '400': { description: 'Validation failed', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
+          '401': { description: 'Invalid/expired pre-auth token, or wrong code', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
           '429': { description: 'Rate limit exceeded', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
         },
       },

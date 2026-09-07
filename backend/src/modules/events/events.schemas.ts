@@ -1,19 +1,9 @@
-/**
- * Validation rules for creating/updating/listing events, using zod. Beyond
- * basic shape checks (required fields, lengths), this also encodes the
- * business rules an event must follow: it has to be scheduled at least 24
- * hours out, and it has to run for at least 15 minutes.
- */
-
 import { z } from 'zod';
 
 const isoDate = z
   .string()
   .refine((value) => !Number.isNaN(Date.parse(value)), 'must be a valid ISO 8601 date');
 
-// Business rule: an event's start time must be committed to at least 24h
-// ahead of whenever it's actually set (on create, or on an update that
-// touches startsAt) — not just "in the future".
 const MIN_LEAD_TIME_MS = 24 * 60 * 60 * 1000;
 
 const leadTimeIsoDate = isoDate.refine(
@@ -21,8 +11,6 @@ const leadTimeIsoDate = isoDate.refine(
   'startsAt must be at least 24 hours from now',
 );
 
-// Business rule: an event must run for at least this long — endsAt merely
-// being after startsAt would let a 1-minute "event" through.
 export const MIN_DURATION_MS = 15 * 60 * 1000;
 const MIN_DURATION_MESSAGE = 'endsAt must be at least 15 minutes after startsAt';
 
@@ -53,10 +41,8 @@ export const updateEventSchema = z
     visibility: z.enum(['public', 'private']).optional(),
     tags: tagNames.optional(),
   })
-  // Only catches the case where both are being changed together — when
-  // only one of the two is in the request, the route handler checks it
-  // against the other's existing stored value instead, since this schema
-  // has no way to see the current row.
+  // only catches the case where both are changed together; a lone field
+  // is checked against the stored row's value in the route handler instead
   .refine(
     (data) => !data.startsAt || !data.endsAt || Date.parse(data.endsAt) - Date.parse(data.startsAt) >= MIN_DURATION_MS,
     { message: MIN_DURATION_MESSAGE, path: ['endsAt'] },

@@ -1,6 +1,6 @@
 import { useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
-import { CalendarDays, LogOut, Menu, X } from 'lucide-react';
+import { CalendarDays, LogOut, Menu, Settings, ShieldCheck, X } from 'lucide-react';
 import { useAuth } from '../contexts/auth';
 import { ROUTES } from '../config/routes';
 
@@ -50,8 +50,16 @@ function SidebarContent() {
                 <span className="block truncate text-sm font-medium text-gray-900">{user.name}</span>
                 <span className="block truncate text-xs text-gray-500">{user.email}</span>
               </span>
+              <Settings className="h-4 w-4 shrink-0 text-gray-400" aria-hidden="true" />
             </summary>
             <div className="absolute bottom-full left-0 mb-1 w-full rounded-md border border-gray-200 bg-white p-1 shadow-md">
+              <Link
+                to={ROUTES.SECURITY}
+                className="flex w-full items-center gap-2 rounded px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50"
+              >
+                <ShieldCheck className="h-4 w-4" aria-hidden="true" />
+                Security
+              </Link>
               <button
                 type="button"
                 onClick={logout}

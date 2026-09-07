@@ -1,10 +1,3 @@
-/**
- * Shared helpers for working with events that don't belong to any single
- * route: shaping a raw database row into the JSON the API returns,
- * looking up which tags belong to which events, and resolving tag names
- * to ids (creating new tags as needed).
- */
-
 import type { Knex } from 'knex';
 import { db } from '../../db/knex';
 
@@ -21,8 +14,6 @@ export interface EventRow {
   updated_at: Date | string;
 }
 
-// Converts a raw database row (snake_case columns, e.g. `starts_at`) into
-// the camelCase shape the API actually sends back to clients.
 export function toPublicEvent(row: EventRow, tags: string[]) {
   return {
     id: row.id,
@@ -39,9 +30,7 @@ export function toPublicEvent(row: EventRow, tags: string[]) {
   };
 }
 
-// Looks up the tag names for a batch of events in one query (rather than
-// one query per event) and groups them by event id, avoiding an N+1 query
-// problem when listing many events at once.
+// Batched to avoid an N+1 query when listing many events at once.
 export async function fetchTagsByEventIds(eventIds: number[]): Promise<Map<number, string[]>> {
   const map = new Map<number, string[]>();
   if (eventIds.length === 0) return map;
@@ -73,10 +62,7 @@ export interface RsvpSummary {
   myStatus: RsvpStatus | null;
 }
 
-// One event's RSVP summary: how many people are going, and (if a caller is
-// identified) their own status. `myStatus` is `null` for an anonymous
-// caller or one who hasn't RSVP'd yet — those are the same "no answer"
-// state from the API's point of view.
+// myStatus is null for both an anonymous caller and one who hasn't RSVP'd.
 export async function fetchRsvpSummary(eventId: number, userId: number | undefined): Promise<RsvpSummary> {
   const countRow = await db<EventRsvpRow>('event_rsvps')
     .where({ event_id: eventId, status: 'going' })
@@ -109,9 +95,7 @@ export interface ListEventsResult {
   total: number;
 }
 
-// Anonymous callers only ever see public events; an authenticated caller
-// additionally sees their own private ones. Any further `visibility` query
-// filter narrows within this scope — it can never widen it.
+// A `visibility` filter can only narrow this scope, never widen it.
 function applyVisibilityScope(query: Knex.QueryBuilder, userId: number | undefined): void {
   if (userId) {
     query.where((qb) => {
@@ -154,11 +138,8 @@ export async function listEvents(params: ListEventsParams, userId: number | unde
 
   let rowsQuery = base.clone().select('events.*');
   if (sortColumn === 'popularity') {
-    // "Popularity" = how many people RSVP'd "going" — a `maybe` doesn't
-    // count. The subquery is pre-grouped to one row per event_id, so the
-    // left join can't fan out and change row counts, only add a count to
-    // order by; `COALESCE` treats an event with zero RSVP rows (nothing
-    // to join to) as 0 rather than leaving it unordered relative to ties.
+    // pre-grouped subquery so the left join can't fan out row counts;
+    // COALESCE treats zero RSVPs as 0 rather than NULL
     const goingCounts = db('event_rsvps').where('status', 'going').groupBy('event_id').select('event_id', db.raw('COUNT(*) as count'));
     rowsQuery = rowsQuery
       .leftJoin(goingCounts.as('going_counts'), 'going_counts.event_id', 'events.id')
@@ -243,8 +224,6 @@ export async function deleteRsvp(eventId: number, userId: number): Promise<void>
   await db('event_rsvps').where({ event_id: eventId, user_id: userId }).delete();
 }
 
-// Resolves tag names to ids, creating any that don't exist yet. Runs inside
-// the caller's transaction so a partial insert can't leave orphan tags.
 export async function upsertTagIds(trx: Knex.Transaction, names: string[]): Promise<number[]> {
   const unique = Array.from(new Set(names.map((name) => name.trim()).filter(Boolean)));
   const ids: number[] = [];
@@ -259,7 +238,7 @@ export async function upsertTagIds(trx: Knex.Transaction, names: string[]): Prom
       const [id] = await trx('tags').insert({ name });
       ids.push(id);
     } catch {
-      // Concurrent request inserted the same (case-insensitive) name first.
+      // concurrent request inserted this name first
       const row = await trx('tags').where({ name }).first();
       if (!row) throw new Error(`Failed to resolve tag "${name}"`);
       ids.push(row.id);

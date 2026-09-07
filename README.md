@@ -99,6 +99,15 @@ npm install   # at the repo root — sets up a pre-commit hook that typechecks b
   request logging via `winston`.
 - **API docs generated, not hand-maintained separately** — `swagger-ui-express` serves the spec
   at `/api/docs` directly from the running server.
+- **2FA via a pre-auth token, not a second full login.** A password check on a 2FA-enabled
+  account issues a short-lived (5 min), narrowly-typed `pre_auth` JWT instead of real tokens —
+  `requireAuth` rejects it outright (same `type` tagging that already separates access from
+  refresh tokens), so it's useless for anything except `POST /auth/2fa/verify`, which is what
+  actually issues the real access/refresh pair once the TOTP code checks out. `otplib` generates
+  the secret and verifies codes (RFC 6238, ±30s clock-drift tolerance); `qrcode` turns the
+  `otpauth://` URI into a scannable PNG so the frontend needs no QR library of its own.
+  Enrollment requires one successful code before `two_factor_enabled` flips on, so an
+  abandoned/failed QR scan can't lock anyone out.
 - **No shared monorepo tooling.** `frontend/` and `backend/` are independent npm projects with
   their own `package.json`/`tsconfig.json` — simplest thing that works for a two-app project
   this size; a shared-types package would be premature for the current scope.
@@ -120,9 +129,7 @@ npm install   # at the repo root — sets up a pre-commit hook that typechecks b
   RSVP.
 - **"Popularity" (for sorting) counts only `going` RSVPs** — a `maybe` doesn't contribute.
 - **A new event defaults to `public` visibility** if not specified.
-- **Two-factor authentication was scoped out.** Listed as an optional "advanced auth" feature in
-  the brief; refresh tokens and email verification (also optional) were prioritized instead as
-  higher-value for the time available.
+- **2FA has no backup/recovery codes.** Losing the authenticator device with no other way back.
 - **No automated test suite.** Listed as optional ("additional coverage welcome"); verification
   throughout development was done via live manual/scripted testing against real dev servers
   (postman and swagger) rather than a committed test suite. 

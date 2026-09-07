@@ -1,9 +1,3 @@
-/**
- * Data access for auth: everything that touches the `users` table. Routes
- * call these instead of querying `db` directly, so `auth.routes.ts` only
- * has to deal with request/response shaping and business rules.
- */
-
 import { db } from '../../db/knex';
 
 export interface UserRow {
@@ -13,10 +7,20 @@ export interface UserRow {
   password_hash: string;
   email_verified_at: Date | string | null;
   token_version: number;
+  totp_secret: string | null;
+  two_factor_enabled: boolean | number;
 }
 
-export function toPublicUser(row: Pick<UserRow, 'id' | 'name' | 'email' | 'email_verified_at'>) {
-  return { id: row.id, name: row.name, email: row.email, emailVerified: row.email_verified_at !== null };
+export function toPublicUser(
+  row: Pick<UserRow, 'id' | 'name' | 'email' | 'email_verified_at' | 'two_factor_enabled'>,
+) {
+  return {
+    id: row.id,
+    name: row.name,
+    email: row.email,
+    emailVerified: row.email_verified_at !== null,
+    twoFactorEnabled: Boolean(row.two_factor_enabled),
+  };
 }
 
 export async function findUserByEmail(email: string): Promise<UserRow | undefined> {
@@ -32,9 +36,18 @@ export async function createUser(input: { name: string; email: string; passwordH
   return id;
 }
 
-// The sole write path for revocation: bumping this invalidates every
-// outstanding refresh token issued to the user (see `POST /auth/refresh`'s
-// `ver` check in `auth.routes.ts`).
 export async function incrementTokenVersion(userId: number): Promise<void> {
   await db('users').where({ id: userId }).increment('token_version', 1);
+}
+
+export async function setTotpSecret(userId: number, secret: string): Promise<void> {
+  await db('users').where({ id: userId }).update({ totp_secret: secret });
+}
+
+export async function enableTwoFactor(userId: number): Promise<void> {
+  await db('users').where({ id: userId }).update({ two_factor_enabled: true });
+}
+
+export async function disableTwoFactor(userId: number): Promise<void> {
+  await db('users').where({ id: userId }).update({ two_factor_enabled: false, totp_secret: null });
 }
