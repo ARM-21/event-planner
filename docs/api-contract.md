@@ -7,51 +7,65 @@ Base path: `/api`. All request/response bodies are JSON
 
 ## Auth
 
-Two JWTs, not one: a short-lived **access token** and a longer-lived
-**refresh token**.
+A short-lived **access token** (a JWT) plus a longer-lived **refresh
+token** (an opaque random value, backed by a `refresh_tokens` DB row —
+see `docs/database-schema.md`). Deliberately different mechanisms: the
+access token is stateless and trusted for its whole life without a DB hit;
+the refresh token's whole job is to be checkable and revocable, so it's a
+row you can look up, not a signed claim you have to trust.
 
 - The access token is what `Authorization: Bearer <token>` carries on
-  every identity-requiring request. Payload: `{ sub: userId, ver, type: 'access', iat, exp }`.
+  every identity-requiring request. Payload: `{ sub: userId, type: 'access', iat, exp }`.
   Expires in **15 minutes**. Returned in the response body by
-  `register`/`login`/`refresh` — the frontend keeps it in memory/localStorage,
-  same as before.
-- The refresh token is never exposed to JS: it's set as an **httpOnly
-  cookie** (`refresh_token`, `Path=/api/auth`, 30-day `Max-Age`) by
-  `register`/`login`/`refresh`, and read back only from that cookie.
-  Payload: `{ sub: userId, ver, type: 'refresh', iat, exp }`. In production
-  it's also `Secure` + `SameSite=None` (frontend/backend may be on
-  different domains); in dev it's `SameSite=Lax` without `Secure` (plain
-  http, same-site by port).
-- `ver` is the user's `token_version` (see `docs/database-schema.md`) at
-  the time the token was issued. `requireAuth`/`optionalAuth` check
-  `type === 'access'` but *not* `ver` — access tokens are trusted
-  statelessly for their whole (short) 15-minute life. Only
-  `POST /auth/refresh` checks `ver` against the current DB value, which is
-  what makes `POST /auth/logout` (which bumps it) an actual revocation
-  rather than just "the frontend forgot the token".
+  `register`/`login`/`refresh`/`2fa/verify` — the frontend keeps it in
+  memory/localStorage.
+- The refresh token is never exposed to JS: it's a random 40-byte hex
+  string set as an **httpOnly cookie** (`refresh_token`, `Path=/api/auth`,
+  30-day `Max-Age`) by `register`/`login`/`refresh`/`2fa/verify`, and read
+  back only from that cookie. Only its sha256 hash is stored server-side
+  (same reasoning as `password_hash`) in a `refresh_tokens` row scoped to
+  one device/session — `user_id`, `device_label` (User-Agent),  `ip`,
+  `expires_at`, and a `revoked_at`/`replaced_by_id` pair used for rotation.
+  In production the cookie is also `Secure` + `SameSite=None`
+  (frontend/backend may be on different domains); in dev it's
+  `SameSite=Lax` without `Secure` (plain http, same-site by port).
+- `requireAuth`/`optionalAuth` only ever check the access token — they
+  never touch the database, so a revoked session stays *able to act*
+  until its access token naturally expires (≤15 min). The refresh token
+  is where revocation is actually enforced: once its row is `revoked_at`,
+  `POST /auth/refresh` will no longer renew that session's access.
 - Clients need `credentials: 'include'` (axios: `withCredentials: true`)
   for the refresh cookie to round-trip at all.
 
 ### `POST /api/auth/refresh`
 
 No body, no `Authorization` header — identity comes entirely from the
-`refresh_token` cookie. On success, issues **both** a new access token and
-a rotated refresh cookie (sliding 30-day expiry from the last refresh, not
-a hard cutoff from login) and responds `200 { "token": "<new access token>" }`.
+`refresh_token` cookie. Every call **rotates**: the presented token's row
+is looked up by hash, marked revoked, and a new row (linked via
+`replaced_by_id`) takes its place — sliding the 30-day expiry forward from
+this refresh, not a hard cutoff from login. On success, responds
+`200 { "token": "<new access token>" }` with a new `Set-Cookie`.
 
-Errors: `401` if the cookie is missing, invalid/expired, the wrong `type`,
-or its `ver` no longer matches the user's current `token_version` (i.e.
-it's been revoked by a logout since it was issued).
+**Reuse detection**: presenting a token that's already been rotated away
+(its row is revoked *and* `replaced_by_id` is set) means the legitimate
+client already moved past it — so this can only be a stolen/leaked copy
+being replayed. That revokes every active refresh token for the user, not
+just this one, forcing every device to log in again.
+
+Errors: `401` if the cookie is missing, not found, expired, or already
+revoked (whether by logout, rotation, or the reuse sweep above) — one
+message either way, since the client-facing action (log in again) is the
+same regardless of cause.
 
 ### `POST /api/auth/logout`
 
 No body. Not auth-gated by `Authorization` — works even with an already-expired
 access token, since that's exactly when someone still holding a long-lived
-refresh cookie needs logout to actually revoke it. Increments the caller's
-`token_version` (identified from the refresh cookie, if present — ignoring
-its own expiry, so an expired-but-correctly-signed cookie can still be
-attributed and revoked) and clears the cookie. A missing/unreadable cookie
-is a no-op, same shape as `DELETE /events/:id/rsvp`.
+refresh cookie needs logout to actually revoke it. Revokes **only the
+calling device's** `refresh_tokens` row (other logged-in sessions are
+unaffected — this is a per-device action, not a global one) and clears the
+cookie. A missing/unreadable cookie is a no-op, same shape as
+`DELETE /events/:id/rsvp`.
 
 Response: `204` no body, always (nothing to reveal either way about whether
 a session existed).
@@ -122,9 +136,7 @@ behavior on a 2FA-enabled account.
 
 The pre-auth token is a real JWT but a deliberately weak one: 5-minute
 expiry, `type: 'pre_auth'` (rejected by `requireAuth`, which only accepts
-`type: 'access'` — the same type-tagging mechanism that keeps refresh
-tokens from being usable as access tokens also keeps a pre-auth token from
-being usable as either). It proves only "this caller knows the password";
+`type: 'access'`). It proves only "this caller knows the password";
 `/2fa/verify` is what proves "and controls the second factor too."
 
 Code verification tolerates ±30 seconds of clock drift between the server

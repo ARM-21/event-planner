@@ -4,6 +4,8 @@ Here is the schema diagram of the tables and their relationships:
 ```
 users ──< events ──< event_tags >── tags
 users >── event_rsvps ──< events   (one row per user per event)
+users ──< refresh_tokens
+users ──< email_verifications
 ```
 
 ---
@@ -17,20 +19,13 @@ users >── event_rsvps ──< events   (one row per user per event)
 | `email`         | VARCHAR(255)        | NOT NULL, UNIQUE            |
 | `password_hash` | VARCHAR(255)        | NOT NULL                    |
 | `email_verified_at` | DATETIME        | NULL — set once the emailed link is confirmed |
-| `token_version` | INT UNSIGNED        | NOT NULL, default `0` — see below |
 | `totp_secret`   | VARCHAR(64)         | NULL — base32 TOTP secret, set by `POST /auth/2fa/setup` |
 | `two_factor_enabled` | BOOLEAN        | NOT NULL, default `false` |
 | `created_at`    | DATETIME            | NOT NULL, default now (UTC) |
 | `updated_at`    | DATETIME            | NOT NULL, default now (UTC), auto-updated |
 
-`token_version` backs refresh-token revocation (see "Auth tokens" in
-`docs/api-contract.md`): every access/refresh JWT embeds the value it was
-issued with, and `POST /auth/logout` increments this column, which
-immediately invalidates every outstanding refresh token for that user
-(checked on every `POST /auth/refresh`). Nothing currently reads or writes
-it besides that one endpoint, but any other action that should force
-re-authentication everywhere (e.g. a future change-password endpoint)
-can reuse the same bump.
+Refresh-token revocation is tracked per-session in `refresh_tokens` below,
+not on `users` — see that section and "Auth tokens" in `docs/api-contract.md`.
 
 `totp_secret` is written by `/auth/2fa/setup` but doesn't turn anything on
 by itself — `two_factor_enabled` only flips to `true` once `/auth/2fa/enable`
@@ -121,6 +116,40 @@ Indexes: `(user_id)` for the resend/cleanup lookup. At most one row per user
 at a time — issuing a new token (register, or a resend) deletes any prior
 one; a successful verify deletes the row it consumed. Only the hash is
 stored, same reasoning as `users.password_hash`.
+
+## refresh_tokens
+
+| Column           | Type            | Constraints                          |
+| ---------------- | --------------- | ------------------------------------- |
+| `id`             | BIGINT UNSIGNED | PK, AUTO_INCREMENT                   |
+| `user_id`        | BIGINT UNSIGNED | NOT NULL, FK → `users.id`, CASCADE   |
+| `token_hash`     | VARCHAR(64)     | NOT NULL, UNIQUE — sha256 hex of the raw cookie value |
+| `device_label`   | VARCHAR(255)    | NULL — `User-Agent` at issue time    |
+| `ip`             | VARCHAR(45)     | NULL — caller's IP at issue time     |
+| `expires_at`     | DATETIME        | NOT NULL — 30 days after issue       |
+| `created_at`     | DATETIME        | NOT NULL, default now (UTC)          |
+| `revoked_at`     | DATETIME        | NULL — set on logout, rotation, or reuse-detection sweep |
+| `replaced_by_id` | BIGINT UNSIGNED | NULL, FK → `refresh_tokens.id`, self-referential, `SET NULL` on delete |
+
+Indexes: `(user_id)`. One row per active session/device — this is what
+makes per-device logout and revocation possible, unlike the single global
+`token_version` counter this table replaced.
+
+Every `POST /auth/refresh` call **rotates**: the presented token is looked
+up by hash, marked `revoked_at`, and a brand-new row is inserted and linked
+back via `replaced_by_id`, so the chain of a session's tokens is
+reconstructable. This also enables **reuse detection** — if a token whose
+`replaced_by_id` is already set gets presented again (the legitimate client
+already rotated past it, so this can only mean the token leaked and an
+attacker is using a stale copy), every active token for that `user_id` is
+revoked immediately, forcing a fresh login on every device. A token revoked
+by an ordinary logout (`replaced_by_id` still `NULL`) does *not* trigger
+this — that's just an already-ended session, not a theft signal.
+
+`POST /auth/logout` revokes only the caller's own row, not every session —
+other logged-in devices are unaffected. Rows are never deleted, only
+revoked; there's no cleanup job for expired/revoked rows in this version
+(see the README's Assumptions section).
 
 ## Cardinality
 
