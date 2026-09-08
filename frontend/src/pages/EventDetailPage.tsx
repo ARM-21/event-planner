@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft, Calendar, Check, Clock, Globe, HelpCircle, Lock, MapPin, Pencil, Trash2, X } from 'lucide-react';
@@ -14,6 +15,7 @@ import { tagPillClass, coverGradientClass } from '../lib/tagStyle';
 import { ROUTES } from '../config/routes';
 import { AppShell } from '../components/AppShell';
 import { Button, Card } from '../components/ui';
+import { ConfirmDialog } from '../components/ConfirmDialog';
 
 export default function EventDetailPage() {
   const { id } = useParams();
@@ -23,6 +25,7 @@ export default function EventDetailPage() {
   const queryClient = useQueryClient();
 
   const eventQuery = useEvent(eventId, token);
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
 
   const deleteMutation = useMutation({
     mutationFn: () => deleteEvent(eventId as number, token as string),
@@ -31,13 +34,11 @@ export default function EventDetailPage() {
       toast.success('Event deleted');
       navigate(ROUTES.EVENTS);
     },
-    onError: (err) => toast.error(getErrorMessage(err, 'Failed to delete event.')),
+    onError: (err) => {
+      setConfirmingDelete(false);
+      toast.error(getErrorMessage(err, 'Failed to delete event.'));
+    },
   });
-
-  function handleDelete() {
-    if (!window.confirm('Delete this event? This cannot be undone.')) return;
-    deleteMutation.mutate();
-  }
 
   const setRsvpMutation = useMutation({
     mutationFn: (status: RsvpStatus) => setEventRsvp(eventId as number, status, token as string),
@@ -61,8 +62,9 @@ export default function EventDetailPage() {
   }
 
   // Hand-styled rather than the shared `Button` component — three mutually exclusive states, no matching variant.
+  // Full-width equal thirds below sm (so labels get room and don't wrap), natural sizing above it.
   const rsvpButtonBaseClass =
-    'inline-flex items-center gap-1.5 rounded-md px-4 py-2 text-sm font-medium transition disabled:cursor-not-allowed disabled:opacity-50';
+    'inline-flex w-full items-center justify-center gap-1 whitespace-nowrap rounded-md px-2 py-2 text-xs font-medium transition disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto sm:gap-1.5 sm:px-4 sm:text-sm';
   const rsvpButtonInactiveClass = 'bg-gray-100 text-gray-700 hover:bg-gray-200';
   const rsvpActiveClassByStatus: Record<RsvpStatus, string> = {
     going: 'bg-indigo-600 text-white',
@@ -115,7 +117,12 @@ export default function EventDetailPage() {
                 <Pencil className="h-4 w-4" aria-hidden="true" />
                 Edit event
               </Button>
-              <Button variant="danger" onClick={handleDelete} disabled={deleteMutation.isPending} className="gap-1.5">
+              <Button
+                variant="danger"
+                onClick={() => setConfirmingDelete(true)}
+                disabled={deleteMutation.isPending}
+                className="gap-1.5"
+              >
                 <Trash2 className="h-4 w-4" aria-hidden="true" />
                 Delete event
               </Button>
@@ -171,7 +178,7 @@ export default function EventDetailPage() {
               <span className="font-medium text-gray-900">{event.rsvp?.goingCount ?? 0}</span> going
             </p>
             {user && !isOwner && (
-              <div className="flex gap-2">
+              <div className="grid w-full grid-cols-3 gap-2 sm:flex sm:w-auto">
                 <button
                   type="button"
                   onClick={() => handleRsvp('going', event.rsvp?.myStatus)}
@@ -215,6 +222,16 @@ export default function EventDetailPage() {
           </div>
         </Card>
       </div>
+
+      <ConfirmDialog
+        open={confirmingDelete}
+        title="Delete this event?"
+        description="This cannot be undone."
+        confirmLabel="Delete event"
+        isConfirming={deleteMutation.isPending}
+        onConfirm={() => deleteMutation.mutate()}
+        onCancel={() => setConfirmingDelete(false)}
+      />
     </AppShell>
   );
 }

@@ -3,7 +3,7 @@
 A full-stack event planning app: create, browse, and RSVP to events, with tag-based
 categorization, public/private visibility, and JWT-based auth. Built as a take-home
 assessment; see `docs/api-contract.md` and `docs/database-schema.md` for full API and
-schema reference, and `docs/progress.md` for a detailed build log.
+schema reference.
 
 **Tech stack:** React + TypeScript (frontend), Express + TypeScript (backend), MySQL via
 Knex.js (no ORM), Tailwind CSS.

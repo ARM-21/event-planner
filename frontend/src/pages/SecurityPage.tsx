@@ -1,61 +1,28 @@
-import { useState } from 'react';
-import { useMutation } from '@tanstack/react-query';
-import { toast } from 'sonner';
 import { ShieldCheck } from 'lucide-react';
-import { setupTwoFactor, type SetupTwoFactorResult } from '../api/auth/setup-two-factor';
-import { enableTwoFactor } from '../api/auth/enable-two-factor';
-import { disableTwoFactor } from '../api/auth/disable-two-factor';
-import { ApiError, getErrorMessage } from '../api/client';
 import { useAuth } from '../contexts/auth';
+import { useTwoFactor } from '../hooks/use-two-factor';
 import { AppShell } from '../components/AppShell';
 import { Button, Card, Field, Input, PasswordInput } from '../components/ui';
 
 export default function SecurityPage() {
-  const { user, token, updateUser } = useAuth();
-  const [setup, setSetup] = useState<SetupTwoFactorResult | null>(null);
-  const [code, setCode] = useState('');
-  const [confirmingDisable, setConfirmingDisable] = useState(false);
-  const [disablePassword, setDisablePassword] = useState('');
-
-  const setupMutation = useMutation({
-    mutationFn: () => setupTwoFactor(token as string),
-    onSuccess: (result) => setSetup(result),
-    onError: (err) => {
-      // A 409 here means the backend's own state disagrees with this tab's
-      // local copy of `user` — most commonly because 2FA was enabled from
-      // a different session (another tab/device) after this one loaded.
-      // Self-heal instead of just showing an error and leaving the UI
-      // stuck offering an "Enable" button that will only ever 409 again.
-      if (err instanceof ApiError && err.status === 409) {
-        updateUser({ twoFactorEnabled: true });
-        toast.info('Two-factor authentication was already enabled in another session.');
-        return;
-      }
-      toast.error(getErrorMessage(err, 'Failed to start 2FA setup.'));
-    },
-  });
-
-  const enableMutation = useMutation({
-    mutationFn: () => enableTwoFactor(code, token as string),
-    onSuccess: () => {
-      updateUser({ twoFactorEnabled: true });
-      setSetup(null);
-      setCode('');
-      toast.success('Two-factor authentication enabled');
-    },
-    onError: (err) => toast.error(getErrorMessage(err, 'Invalid code.')),
-  });
-
-  const disableMutation = useMutation({
-    mutationFn: () => disableTwoFactor(disablePassword, token as string),
-    onSuccess: () => {
-      updateUser({ twoFactorEnabled: false });
-      setConfirmingDisable(false);
-      setDisablePassword('');
-      toast.success('Two-factor authentication disabled');
-    },
-    onError: (err) => toast.error(getErrorMessage(err, 'Incorrect password.')),
-  });
+  const { user } = useAuth();
+  const {
+    setup,
+    startSetup,
+    isStarting,
+    cancelSetup,
+    code,
+    setCode,
+    confirmEnable,
+    isEnabling,
+    confirmingDisable,
+    startDisable,
+    cancelDisable,
+    disablePassword,
+    setDisablePassword,
+    confirmDisable,
+    isDisabling,
+  } = useTwoFactor();
 
   return (
     <AppShell>
@@ -78,7 +45,7 @@ export default function SecurityPage() {
               <form
                 onSubmit={(e) => {
                   e.preventDefault();
-                  disableMutation.mutate();
+                  confirmDisable();
                 }}
                 className="mt-5 space-y-3"
                 noValidate
@@ -93,17 +60,10 @@ export default function SecurityPage() {
                   />
                 </Field>
                 <div className="flex gap-2">
-                  <Button type="submit" variant="danger" disabled={!disablePassword || disableMutation.isPending}>
-                    {disableMutation.isPending ? 'Disabling…' : 'Confirm & disable'}
+                  <Button type="submit" variant="danger" disabled={!disablePassword || isDisabling}>
+                    {isDisabling ? 'Disabling…' : 'Confirm & disable'}
                   </Button>
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    onClick={() => {
-                      setConfirmingDisable(false);
-                      setDisablePassword('');
-                    }}
-                  >
+                  <Button type="button" variant="secondary" onClick={cancelDisable}>
                     Cancel
                   </Button>
                 </div>
@@ -111,7 +71,7 @@ export default function SecurityPage() {
             ) : (
               <div className="mt-5 flex items-center justify-between rounded-md bg-emerald-50 px-4 py-3">
                 <span className="text-sm font-medium text-emerald-800">Enabled</span>
-                <Button variant="danger" onClick={() => setConfirmingDisable(true)}>
+                <Button variant="danger" onClick={startDisable}>
                   Disable
                 </Button>
               </div>
@@ -129,7 +89,7 @@ export default function SecurityPage() {
               <form
                 onSubmit={(e) => {
                   e.preventDefault();
-                  enableMutation.mutate();
+                  confirmEnable();
                 }}
                 className="space-y-3"
                 noValidate
@@ -146,10 +106,10 @@ export default function SecurityPage() {
                   />
                 </Field>
                 <div className="flex gap-2">
-                  <Button type="submit" disabled={code.length !== 6 || enableMutation.isPending}>
-                    {enableMutation.isPending ? 'Confirming…' : 'Confirm & enable'}
+                  <Button type="submit" disabled={code.length !== 6 || isEnabling}>─ auth-api.ts    
+                    {isEnabling ? 'Confirming…' : 'Confirm & enable'}
                   </Button>
-                  <Button type="button" variant="secondary" onClick={() => setSetup(null)}>
+                  <Button type="button" variant="secondary" onClick={cancelSetup}>
                     Cancel
                   </Button>
                 </div>
@@ -157,8 +117,8 @@ export default function SecurityPage() {
             </div>
           ) : (
             <div className="mt-5">
-              <Button onClick={() => setupMutation.mutate()} disabled={setupMutation.isPending}>
-                {setupMutation.isPending ? 'Starting…' : 'Enable two-factor authentication'}
+              <Button onClick={startSetup} disabled={isStarting}>
+                {isStarting ? 'Starting…' : 'Enable two-factor authentication'}
               </Button>
             </div>
           )}

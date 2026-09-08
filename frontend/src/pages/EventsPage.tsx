@@ -16,6 +16,7 @@ import { AppShell } from '../components/AppShell';
 import { ROUTES } from '../config/routes';
 import { EventCard } from '../components/EventCard';
 import { Pagination } from '../components/Pagination';
+import { ConfirmDialog } from '../components/ConfirmDialog';
 
 const LIMIT = 10;
 
@@ -80,11 +81,14 @@ export default function EventsPage() {
 
   const tagsQuery = useTags();
 
+  const [pendingDeleteId, setPendingDeleteId] = useState<number | null>(null);
+
   const deleteMutation = useMutation({
     mutationFn: (id: number) => deleteEvent(id, token as string),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['events'] });
       toast.success('Event deleted');
+      setPendingDeleteId(null);
     },
     onError: (err) => toast.error(getErrorMessage(err, 'Failed to delete event.')),
   });
@@ -92,11 +96,6 @@ export default function EventsPage() {
   const resendMutation = useMutation({
     mutationFn: () => resendVerification(token as string),
   });
-
-  function handleDelete(id: number) {
-    if (!window.confirm('Delete this event? This cannot be undone.')) return;
-    deleteMutation.mutate(id);
-  }
 
   const events = eventsQuery.data?.data ?? [];
   const pagination = eventsQuery.data?.pagination;
@@ -271,7 +270,7 @@ export default function EventsPage() {
                   event={event}
                   isOwner={user?.id === event.creatorId}
                   onEdit={() => navigate(ROUTES.EVENT_EDIT(event.id))}
-                  onDelete={() => handleDelete(event.id)}
+                  onDelete={() => setPendingDeleteId(event.id)}
                   deleteDisabled={deleteMutation.isPending}
                 />
               ))}
@@ -290,6 +289,16 @@ export default function EventsPage() {
           </div>
         )}
       </div>
+
+      <ConfirmDialog
+        open={pendingDeleteId !== null}
+        title="Delete this event?"
+        description="This cannot be undone."
+        confirmLabel="Delete event"
+        isConfirming={deleteMutation.isPending}
+        onConfirm={() => pendingDeleteId !== null && deleteMutation.mutate(pendingDeleteId)}
+        onCancel={() => setPendingDeleteId(null)}
+      />
     </AppShell>
   );
 }
