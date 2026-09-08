@@ -26,7 +26,8 @@ import {
   enableTwoFactor,
   disableTwoFactor,
 } from './auth.service';
-import { createRefreshToken, rotateRefreshToken, revokeRefreshToken, type SessionMeta } from './refresh-tokens.service';
+import { createRefreshToken, rotateRefreshToken, revokeRefreshToken } from './refresh-tokens.service';
+import type { SessionMeta } from './auth.types';
 import { generateTotpSecret, generateTotpQrCode, verifyTotpCode, getCurrentTotpCode } from './totp';
 
 const router = Router();
@@ -75,7 +76,7 @@ function clearRefreshCookie(res: Response): void {
 // the one path register/login/2fa-verify all share.
 async function startSession(req: Request, res: Response, userId: number): Promise<string> {
   const accessToken = issueAccessToken(userId);
-  const refreshToken = await createRefreshToken(userId, sessionMeta(req));
+  const { rawToken: refreshToken } = await createRefreshToken(userId, sessionMeta(req));
   setRefreshCookie(res, refreshToken);
   return accessToken;
 }
@@ -213,8 +214,7 @@ router.post('/2fa/enable', twoFactorEnableLimiter, requireAuth, async (req, res,
 
 // Requires the password (not just requireAuth) so a stolen access token
 // alone can't strip 2FA off the account; password rather than a TOTP code
-// so losing the authenticator device doesn't lock this out (no recovery
-// codes in this version — see README).
+// so losing the authenticator device doesn't lock this out.
 router.post('/2fa/disable', requireAuth, async (req, res, next) => {
   const parsed = disableTwoFactorSchema.safeParse(req.body);
   if (!parsed.success) {
@@ -314,9 +314,8 @@ router.post('/refresh', async (req, res, next) => {
 });
 
 // Revokes only this device's refresh_tokens row, not every session — other
-// logged-in devices stay signed in. Not requireAuth-gated: still needs to
-// work with an expired access token, since forgetting a long-lived refresh
-// cookie behind is exactly the case logout needs to cover.
+// logged-in devices stay signed in. Not requireAuth-gated: must still work
+// with an expired access token.
 router.post('/logout', async (req, res, next) => {
   const token = req.cookies?.[REFRESH_COOKIE_NAME];
   try {

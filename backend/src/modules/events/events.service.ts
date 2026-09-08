@@ -1,18 +1,15 @@
 import type { Knex } from 'knex';
 import { db } from '../../db/knex';
-
-export interface EventRow {
-  id: number;
-  creator_id: number;
-  title: string;
-  description: string | null;
-  starts_at: Date | string;
-  ends_at: Date | string;
-  location: string;
-  visibility: 'public' | 'private';
-  created_at: Date | string;
-  updated_at: Date | string;
-}
+import type {
+  EventRow,
+  RsvpStatus,
+  EventRsvpRow,
+  RsvpSummary,
+  ListEventsParams,
+  ListEventsResult,
+  CreateEventInput,
+  UpdateEventInput,
+} from './events.types';
 
 export function toPublicEvent(row: EventRow, tags: string[]) {
   return {
@@ -49,19 +46,6 @@ export async function fetchTagsByEventIds(eventIds: number[]): Promise<Map<numbe
   return map;
 }
 
-export type RsvpStatus = 'going' | 'maybe' | 'not_going';
-
-interface EventRsvpRow {
-  event_id: number;
-  user_id: number;
-  status: RsvpStatus;
-}
-
-export interface RsvpSummary {
-  goingCount: number;
-  myStatus: RsvpStatus | null;
-}
-
 // myStatus is null for both an anonymous caller and one who hasn't RSVP'd.
 export async function fetchRsvpSummary(eventId: number, userId: number | undefined): Promise<RsvpSummary> {
   const countRow = await db<EventRsvpRow>('event_rsvps')
@@ -77,22 +61,6 @@ export async function fetchRsvpSummary(eventId: number, userId: number | undefin
   }
 
   return { goingCount, myStatus };
-}
-
-export interface ListEventsParams {
-  page: number;
-  limit: number;
-  search?: string;
-  tag?: string;
-  visibility?: 'public' | 'private';
-  from?: string;
-  status?: 'upcoming' | 'past';
-  sort: string;
-}
-
-export interface ListEventsResult {
-  rows: EventRow[];
-  total: number;
 }
 
 // A `visibility` filter can only narrow this scope, never widen it.
@@ -156,17 +124,6 @@ export async function findEventById(id: number): Promise<EventRow | undefined> {
   return db<EventRow>('events').where({ id }).first();
 }
 
-export interface CreateEventInput {
-  creatorId: number;
-  title: string;
-  description: string | null;
-  startsAt: Date;
-  endsAt: Date;
-  location: string;
-  visibility: 'public' | 'private';
-  tags: string[];
-}
-
 export async function createEventRecord(input: CreateEventInput): Promise<EventRow> {
   return db.transaction(async (trx) => {
     const [id] = await trx('events').insert({
@@ -185,11 +142,6 @@ export async function createEventRecord(input: CreateEventInput): Promise<EventR
     const row = await trx<EventRow>('events').where({ id }).first();
     return row!;
   });
-}
-
-export interface UpdateEventInput {
-  updates: Record<string, unknown>;
-  tags?: string[];
 }
 
 export async function updateEventRecord(id: number, input: UpdateEventInput): Promise<EventRow> {

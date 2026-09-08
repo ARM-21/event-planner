@@ -1,5 +1,6 @@
 import crypto from 'crypto';
 import { db } from '../../db/knex';
+import type { EmailVerificationRow } from './auth.types';
 
 const TOKEN_TTL_MS = 24 * 60 * 60 * 1000;
 
@@ -20,13 +21,6 @@ export async function createVerificationToken(userId: number): Promise<string> {
     });
   });
   return rawToken;
-}
-
-interface EmailVerificationRow {
-  id: number;
-  user_id: number;
-  token_hash: string;
-  expires_at: Date | string;
 }
 
 export async function consumeVerificationToken(rawToken: string): Promise<{ userId: number } | null> {

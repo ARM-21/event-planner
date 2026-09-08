@@ -1,14 +1,5 @@
 import { db } from '../../db/knex';
-
-export interface UserRow {
-  id: number;
-  name: string;
-  email: string;
-  password_hash: string;
-  email_verified_at: Date | string | null;
-  totp_secret: string | null;
-  two_factor_enabled: boolean | number;
-}
+import type { UserRow } from './auth.types';
 
 export function toPublicUser(
   row: Pick<UserRow, 'id' | 'name' | 'email' | 'email_verified_at' | 'two_factor_enabled'>,

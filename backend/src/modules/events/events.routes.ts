@@ -4,7 +4,6 @@ import { badRequest, forbidden, notFound } from '../../utils/errors';
 import { zodIssuesToDetails } from '../../utils/validation';
 import { createEventSchema, updateEventSchema, listEventsQuerySchema, rsvpSchema, MIN_DURATION_MS } from './events.schemas';
 import {
-  type EventRow,
   toPublicEvent,
   fetchTagsByEventIds,
   fetchRsvpSummary,
@@ -16,6 +15,7 @@ import {
   upsertRsvp,
   deleteRsvp,
 } from './events.service';
+import type { EventRow } from './events.types';
 
 const router = Router();
 
