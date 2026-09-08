@@ -5,7 +5,11 @@ const emailSchema = z.string().trim().toLowerCase().max(255).pipe(z.email('inval
 export const registerSchema = z.object({
   name: z.string().trim().min(1, 'name is required').max(100),
   email: emailSchema,
-  password: z.string().min(8, 'password must be at least 8 characters').max(72),
+  password: z.string().min(6, 'password must be at least 6 characters').max(72)
+  .regex(/[A-Z]/, 'Password must contain at least one uppercase letter')
+  .regex(/[a-z]/, 'Password must contain at least one lowercase letter')
+  .regex(/[0-9]/, 'Password must contain at least one number')
+  .regex(/[^A-Za-z0-9]/, 'Password must contain at least one special character')
 });
 
 export const loginSchema = z.object({

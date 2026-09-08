@@ -22,21 +22,38 @@ export async function createVerificationToken(userId: number): Promise<string> {
   return rawToken;
 }
 
+interface EmailVerificationRow {
+  id: number;
+  user_id: number;
+  token_hash: string;
+  expires_at: Date | string;
+}
+
 export async function consumeVerificationToken(rawToken: string): Promise<{ userId: number } | null> {
-  const record = await db<{ id: number; user_id: number; token_hash: string; expires_at: Date | string }>(
-    'email_verifications',
-  )
-    .where({ token_hash: hashToken(rawToken) })
-    .first();
+  const tokenHash = hashToken(rawToken);
 
-  if (!record || new Date(record.expires_at).getTime() < Date.now()) {
-    return null;
-  }
+  return await db.transaction(async (trx) => {
+    // forUpdate locks the row so two concurrent requests can't both consume the same token
+    const record = await trx<EmailVerificationRow>('email_verifications')
+      .where({ token_hash: tokenHash })
+      .where('expires_at', '>', trx.fn.now())
+      .forUpdate()
+      .first();
 
-  await db.transaction(async (trx) => {
-    await trx('users').where({ id: record.user_id }).update({ email_verified_at: trx.fn.now() });
-    await trx('email_verifications').where({ id: record.id }).delete();
+    if (!record) {
+      return null;
+    }
+
+    // 2. Mark user as verified
+    await trx('users')
+      .where({ id: record.user_id })
+      .update({ email_verified_at: trx.fn.now() });
+
+    // 3. Delete the consumed verification token
+    await trx('email_verifications')
+      .where({ id: record.id })
+      .delete();
+
+    return { userId: record.user_id };
   });
-
-  return { userId: record.user_id };
 }

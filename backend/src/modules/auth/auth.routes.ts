@@ -86,7 +86,7 @@ router.post('/register', async (req, res, next) => {
     next(
       badRequest(
         'Validation failed',
-        parsed.error.issues.map((issue) => ({ field: String(issue.path[0]), message: issue.message })),
+        zodIssuesToDetails(parsed.error),
       ),
     );
     return;
@@ -118,7 +118,7 @@ router.post('/login', async (req, res, next) => {
     next(
       badRequest(
         'Validation failed',
-        parsed.error.issues.map((issue) => ({ field: String(issue.path[0]), message: issue.message })),
+        zodIssuesToDetails(parsed.error),
       ),
     );
     return;
@@ -194,7 +194,7 @@ router.post('/2fa/enable', twoFactorEnableLimiter, requireAuth, async (req, res,
       return;
     }
     if (!user.totp_secret) {
-      next(badRequest('Call /2fa/setup first'));
+      next(badRequest('Call 2FA setup first'));
       return;
     }
 
