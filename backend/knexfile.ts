@@ -20,6 +20,10 @@ const config: Knex.Config = {
     tableName: 'knex_migrations',
     extension: 'ts',
   },
+  seeds: {
+    directory: path.resolve(__dirname, 'seeds'),
+    extension: 'ts',
+  },
   pool: { min: 0, max: 10 },
 };
 
