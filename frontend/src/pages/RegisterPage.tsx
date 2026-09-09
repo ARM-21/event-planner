@@ -43,7 +43,7 @@ export default function RegisterPage() {
       <p className="mt-1 text-sm text-gray-500">Start planning your first event</p>
       <form onSubmit={handleSubmit((values) => registerMutation.mutate(values))} className="mt-6 space-y-4" noValidate>
         <Field label="Name" htmlFor="name" error={errors.name?.message}>
-          <Input id="name" autoComplete="name" placeholder="Ada Lovelace" {...register('name')} />
+          <Input id="name" autoComplete="name" placeholder="Adam Eve" {...register('name')} />
         </Field>
         <Field label="Email" htmlFor="email" error={errors.email?.message}>
           <Input id="email" type="email" autoComplete="email" placeholder="you@example.com" {...register('email')} />
