@@ -1,35 +1,36 @@
 # Evently — Event Planning App
 
-A full-stack event planning app: create, browse, and RSVP to events, with tag-based
-categorization, public/private visibility, and JWT-based auth. Built as a take-home
-assessment; see `docs/api-contract.md` and `docs/database-schema.md` for full API and
-schema reference.
+Evently is a full stack event planning app. You can create events, browse what is coming up or
+already past, tag and filter them, and RSVP. Events can be public or private and the auth is JWT
+based. Built as a take-home assessment.
 
-**Tech stack:** React + TypeScript (frontend), Express + TypeScript (backend), MySQL via
-Knex.js (no ORM), Tailwind CSS.
+The frontend is React with TypeScript and Tailwind. The backend is Express with TypeScript on
+MySQL, using Knex as the query builder instead of an ORM. The full API and schema reference are in
+`docs/api-contract.md` and `docs/database-schema.md`, and the bonus SQL questions are answered in
+`bonus-question/`, one file per question.
 
 ## Implemented features
 
 ### Required
 
 - User signup and login with JWT authentication
-- Protected authenticated routes (frontend route guards, backend `requireAuth` middleware)
+- Protected routes on both sides, route guards on the frontend and `requireAuth` on the backend
 - Create, view, edit, and delete events
-- Creator-only authorization for edit/delete (see [Engineering decisions](#engineering-decisions))
+- Only the creator can edit or delete their own events
 - Upcoming and past event listings
 - Public/private event visibility
 - Multiple tags per event
-- Filtering by search text, tag, and visibility; sorting (including by RSVP popularity)
+- Filtering by search text, tag, and visibility; sorting by date, popularity, or creation time
 - Server-side pagination
-- Frontend and backend validation (see [Engineering decisions](#engineering-decisions))
+- Validation on the frontend and again on the backend
 - Loading, empty, and error states throughout the events UI
 
 ### Additional
 
-- RSVP responses: `going`, `maybe`, and `not_going` (displayed in the UI as "Can't go")
-- Refresh-token rotation with reuse detection (see [Engineering decisions](#engineering-decisions))
-- Email verification (sends via Resend when configured; logs the link to the console in dev)
-- Two-factor authentication (TOTP) — see the [Assumptions](#assumptions) note on its limitation
+- RSVP responses: `going`, `maybe`, and `not_going` (shown in the UI as "Can't go")
+- Refresh-token rotation with reuse detection
+- Email verification, sends through Resend when configured and logs the link to the console in dev
+- Two-factor authentication over TOTP
 - Swagger/OpenAPI docs generated from the running server at `/api/docs`
 
 ## Setup instructions
@@ -49,8 +50,8 @@ cp backend/.env.example backend/.env
 docker compose --env-file backend/.env up -d
 ```
 
-Or point `backend/.env`'s `DB_*` values at a MySQL instance you already have running —
-the app doesn't care which.
+Or point `backend/.env`'s `DB_*` values at a MySQL instance you already have running. The app does
+not care which one it is.
 
 ### 2. Backend
 
@@ -65,8 +66,8 @@ npm run dev
 Runs on `http://localhost:4000`. Interactive API docs (Swagger UI) at
 `http://localhost:4000/api/docs`.
 
-`seed:run` seeds two accounts with sample public/private events and an RSVP (resets on
-every run — don't use it on data you want to keep):
+`seed:run` seeds two accounts with sample public and private events and an RSVP. It resets these
+on every run, so do not use it on data you want to keep.
 
 | | Email | Password |
 |---|---|---|
@@ -74,7 +75,7 @@ every run — don't use it on data you want to keep):
 | Viewer | `demo2@evently.dev` | `Demo1234!` |
 
 Log in as either to browse/filter/create/edit/RSVP; log in as the other to confirm private
-events and edit/delete stay creator-only. Seed data is optional — `/register` works too.
+events and edit/delete stay creator-only. Seed data is optional, `/register` works too.
 
 ### 3. Frontend
 
@@ -107,81 +108,64 @@ npm install   # at the repo root — sets up a pre-commit hook that typechecks b
 
 ## Engineering decisions
 
-Required-feature decisions first; the two optional security features (refresh-token
-rotation, 2FA) at the end.
+### Rotating refresh tokens instead of one long lived JWT
 
-### Knex, not an ORM
+A single long lived JWT would have been simpler, but then logout does not really log anyone out. A
+stateless token stays valid until it expires and nothing can revoke it in between.
 
-- Alternative: an ORM (Prisma, Sequelize) — trades away SQL visibility for convenience.
-- `GET /api/events` needs dynamic `WHERE`/`ORDER BY` composition (search, tag, visibility,
-  status, sort) plus a subquery for popularity sort — awkward through most ORM abstractions.
-- **Decision:** Knex query builders throughout, plain `.ts` migrations, transactions via
-  `db.transaction()`.
+So I used a 15 minute access token which is still verified statelessly with no database hit per
+request, together with a 30 day refresh token which is just an opaque random string kept in an
+httpOnly cookie. The actual state sits in a `refresh_tokens` row with the hash, device label, IP and
+revocation state. Every call to `/auth/refresh` rotates the token and points the old row to its
+replacement using `replaced_by_id`.
 
-### Routes call services directly — no controller or data-access layer
+That `replaced_by_id` column is also what makes reuse detection possible. If a token that was
+already rotated past shows up again then it must have leaked, so at that point every session of that
+user is revoked and not only the one that was presented.
 
-- Alternative: routes → controllers → services → a repository layer, each with one job.
-- **Decision:** each module's `*.routes.ts` handles the HTTP concerns and calls straight
-  into its `*.service.ts`, which owns both the business logic and the Knex queries
-  themselves — e.g. `createEventRecord` opens a transaction and runs its own inserts.
+This is also the place where concurrency caused a real problem. Two refresh calls arriving at the
+same time could both read the same row as still valid and both create their own replacement. To fix
+it I wrapped the whole read, check, insert and update inside one transaction with
+`SELECT ... FOR UPDATE`, which is the same row locking already used while consuming an email
+verification token.
 
-### React Query for server state
+### 404 instead of 403 on private events
 
-- Alternative: hand-rolled loading/error/cache state via `useState`/`useEffect`, or a
-  global store (Redux, Zustand) with a caching layer written from scratch.
-- **Decision:** React Query for every API read and write — queries for lists/details,
-  mutations for create/update/delete/RSVP — with `invalidateQueries` re-fetching after a
-  mutation succeeds (deleting an event invalidates the `['events']` list).
+If a private event returns `403` to someone who is not the owner, that already tells them the event
+exists. So for private events a non owner gets `404` instead, on `GET`, `PUT` and `DELETE`. Public
+events are a different case because everyone can see them anyway, so editing or deleting someone
+else's public event returns a normal `403`.
 
-### React Hook Form + Zod for forms
+### Knex instead of an ORM
 
-- Alternative: plain controlled `useState` per field, or a heavier form library with its
-  own validation DSL.
-- **Decision:** React Hook Form owns field/submission state; the same Zod schemas validate
-  on the frontend for immediate feedback, then again on the backend (the frontend check is
-  only a UX convenience — an API client could skip it entirely).
+The brief asked for a query builder and it fits this app anyway. `GET /api/events` builds its
+`WHERE` and `ORDER BY` at runtime from search text, tag, visibility, upcoming or past status and six
+sort options, and sorting by popularity needs a grouped subquery over `event_rsvps`. With an ORM
+that kind of query usually ends up being written around the abstraction instead of through it.
+Migrations and transactions are plain Knex as well, so there is one way of doing everything that
+touches the database.
 
-### Existence-hiding for private events
+### The rest, briefly
 
-- Alternative: a uniform `403` for anyone not allowed to see or edit a resource.
-- A `403` on a private event would confirm it exists to someone who shouldn't know.
-- **Decision:** a non-owner gets `404` (not `403`) on a private event's `GET`/`PUT`/`DELETE`;
-  editing or deleting someone else's *public* event gets a plain `403`.
-
-**Also:**
-
-- Tags are freeform, resolved-or-created inline in the same transaction as the event — no
-  standalone "create tag" endpoint.
-- Standard security middleware: `helmet()`, a CORS allowlist, `express-rate-limit`, bcrypt,
-  structured `winston` logging.
-- API docs generated live via `swagger-ui-express`, not hand-maintained.
-- No shared monorepo tooling — `frontend/`/`backend/` are independent npm projects.
-
-### Access token + refresh-token rotation, not one long-lived token *(optional feature)*
-
-- Alternative: a single long-lived JWT trusted statelessly — can't be revoked before it
-  expires, so "logout" would be fake.
-- **Decision:** a 15-minute access token (stateless, no DB hit per request) paired with an
-  opaque, DB-backed refresh token in an httpOnly cookie (`refresh_tokens` table: hash,
-  device, IP, expiry, revocation state). Every `/auth/refresh` call **rotates** it and links
-  the old row to the new one via `replaced_by_id`. A token whose `replaced_by_id` is already
-  set being presented again can only mean it leaked — every session for that user is
-  revoked immediately.
-- **Along the way:** found a real race — two concurrent refresh calls presenting the same
-  token could each mint their own replacement before either committed. Fixed by wrapping
-  the read-check-insert-update sequence in one transaction with `SELECT ... FOR UPDATE`,
-  the same row-locking pattern used to consume an email-verification token.
-
-### 2FA via a short-lived pre-auth token *(optional feature)*
-
-- Alternative: a second full login step — check the TOTP code, then rerun the whole login
-  flow.
-- **Decision:** a password check on a 2FA-enabled account issues a short-lived (5 min),
-  narrowly-typed `pre_auth` JWT, not real tokens. `requireAuth` rejects it outright (only
-  `type: 'access'` passes), so it's only usable by `POST /auth/2fa/verify`, which issues
-  the real access token and refresh session once the TOTP code checks out.
-- **Limitation:** no backup/recovery codes (see [Assumptions](#assumptions)) — losing the
-  authenticator device locks the account out, by design for this version.
+- Routes call services directly, with no controller or repository layer. `*.routes.ts` handles the
+  HTTP part and calls into `*.service.ts`, which holds the logic and its own queries. With three
+  modules, two more layers would only mean more files to open for a single request.
+- React Query holds all the server state. The main reason was invalidation rather than caching,
+  since `invalidateQueries(['events'])` after a mutation is safer than syncing a going count between
+  the list and the detail page by hand.
+- React Hook Form with Zod for the forms, and the same rules run again on the backend. The frontend
+  validation is only for feedback because anyone can skip it with curl, so the backend one is the
+  real check.
+- 2FA uses a `pre_auth` token instead of a second login. A password check on a 2FA account returns a
+  5 minute narrowly typed JWT which `requireAuth` refuses, so it only works at `/auth/2fa/verify`.
+  There are no recovery codes, which is noted in Assumptions.
+- Tags are freeform and get resolved or created inline in the same transaction as the event, so
+  there is no separate create tag endpoint to keep in sync.
+- The usual security middleware is in place, `helmet()`, a CORS allowlist instead of a wildcard,
+  `express-rate-limit`, bcrypt and `winston` for structured logs.
+- Swagger is generated from the running server at `/api/docs` so the docs cannot drift from the code.
+- `frontend/` and `backend/` are kept as separate npm projects, since a shared types package would
+  be more tooling than a two app repo needs.
 
 ## Assumptions
 
