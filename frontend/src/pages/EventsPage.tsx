@@ -18,7 +18,7 @@ import { EventCard } from '../components/EventCard';
 import { Pagination } from '../components/Pagination';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 
-const LIMIT = 10;
+const LIMIT = 9;
 
 interface FiltersFormValues {
   search: string;
