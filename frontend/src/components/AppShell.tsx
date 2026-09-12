@@ -2,6 +2,7 @@ import { useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { CalendarDays, LogOut, Menu, Settings, ShieldCheck, X } from 'lucide-react';
 import { useAuth } from '../contexts/auth';
+import { initials } from '../lib/initials';
 import { ROUTES } from '../config/routes';
 
 function Logo() {
@@ -19,11 +20,6 @@ function Logo() {
       <span className="inline text-sm font-semibold sm:hidden">Evently</span>
     </Link>
   );
-}
-
-function initials(name: string): string {
-  const parts = name.trim().split(/\s+/);
-  return ((parts[0]?.[0] ?? '') + (parts[1]?.[0] ?? '')).toUpperCase();
 }
 
 function SidebarContent() {

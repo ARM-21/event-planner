@@ -12,9 +12,10 @@ import { useAuth } from '../contexts/auth';
 import { useEvent } from '../query/events/use-event';
 import { formatEventRange } from '../lib/formatEventRange';
 import { tagPillClass, coverGradientClass } from '../lib/tagStyle';
+import { initials } from '../lib/initials';
 import { ROUTES } from '../config/routes';
 import { AppShell } from '../components/AppShell';
-import { Button, Card } from '../components/ui';
+import { Button, Card, PageLoader, Spinner } from '../components/ui';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 
 export default function EventDetailPage() {
@@ -78,7 +79,7 @@ export default function EventDetailPage() {
   if (eventQuery.isLoading) {
     return (
       <AppShell>
-        <p className="text-gray-500">Loading…</p>
+        <PageLoader label="Loading event…" />
       </AppShell>
     );
   }
@@ -99,6 +100,16 @@ export default function EventDetailPage() {
 
   const event = eventQuery.data;
   const isOwner = user?.id === event.creatorId;
+  // RSVP closes once the event is over. The backend rejects it too, this just
+  // keeps the controls from being offered in the first place.
+  const hasEnded = new Date(event.endsAt) < new Date();
+  // Only the button that was actually clicked spins. Clearing an RSVP re-clicks
+  // the currently selected one, so that is the one to mark as pending.
+  const pendingRsvp: RsvpStatus | null = setRsvpMutation.isPending
+    ? (setRsvpMutation.variables as RsvpStatus)
+    : clearRsvpMutation.isPending
+      ? event.rsvp?.myStatus ?? null
+      : null;
 
   return (
     <AppShell>
@@ -120,7 +131,7 @@ export default function EventDetailPage() {
               <Button
                 variant="danger"
                 onClick={() => setConfirmingDelete(true)}
-                disabled={deleteMutation.isPending}
+                loading={deleteMutation.isPending}
                 className="gap-1.5"
               >
                 <Trash2 className="h-4 w-4" aria-hidden="true" />
@@ -175,9 +186,15 @@ export default function EventDetailPage() {
 
           <div className="mt-6 flex flex-wrap items-center justify-between gap-3 border-t border-gray-200 pt-6">
             <p className="text-sm text-gray-600">
-              <span className="font-medium text-gray-900">{event.rsvp?.goingCount ?? 0}</span> going
+              <span className="font-medium text-gray-900">{event.rsvp?.goingCount ?? 0}</span>{' '}
+              {hasEnded ? 'went' : 'going'}
             </p>
-            {user && !isOwner && (
+            {hasEnded && (
+              <span className="rounded-full bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-600">
+                This event has ended
+              </span>
+            )}
+            {user && !isOwner && !hasEnded && (
               <div className="grid w-full grid-cols-3 gap-2 sm:flex sm:w-auto">
                 <button
                   type="button"
@@ -185,7 +202,7 @@ export default function EventDetailPage() {
                   disabled={setRsvpMutation.isPending || clearRsvpMutation.isPending}
                   className={rsvpButtonClass('going', event.rsvp?.myStatus)}
                 >
-                  <Check className="h-4 w-4" aria-hidden="true" />
+                  {pendingRsvp === 'going' ? <Spinner /> : <Check className="h-4 w-4" aria-hidden="true" />}
                   I&apos;m going
                 </button>
                 <button
@@ -194,7 +211,7 @@ export default function EventDetailPage() {
                   disabled={setRsvpMutation.isPending || clearRsvpMutation.isPending}
                   className={rsvpButtonClass('maybe', event.rsvp?.myStatus)}
                 >
-                  <HelpCircle className="h-4 w-4" aria-hidden="true" />
+                  {pendingRsvp === 'maybe' ? <Spinner /> : <HelpCircle className="h-4 w-4" aria-hidden="true" />}
                   Maybe
                 </button>
                 <button
@@ -203,7 +220,7 @@ export default function EventDetailPage() {
                   disabled={setRsvpMutation.isPending || clearRsvpMutation.isPending}
                   className={rsvpButtonClass('not_going', event.rsvp?.myStatus)}
                 >
-                  <X className="h-4 w-4" aria-hidden="true" />
+                  {pendingRsvp === 'not_going' ? <Spinner /> : <X className="h-4 w-4" aria-hidden="true" />}
                   Can&apos;t go
                 </button>
               </div>
@@ -217,8 +234,23 @@ export default function EventDetailPage() {
             </div>
           )}
 
-          <div className="mt-6 border-t border-gray-200 pt-4 text-xs text-gray-400">
-            Created {new Date(event.createdAt).toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' })}
+          <div className="mt-6 flex flex-wrap items-center justify-between gap-3 border-t border-gray-200 pt-4">
+            <div className="flex items-center gap-2.5">
+              {/* Initials only. The API exposes the creator's name and nothing
+                  else, so there is no image to load and nothing to link to. */}
+              <span
+                aria-hidden="true"
+                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-indigo-100 text-xs font-semibold text-indigo-700"
+              >
+                {initials(event.creatorName)}
+              </span>
+              <span className="text-sm text-gray-600">
+                Hosted by <span className="font-medium text-gray-900">{event.creatorName}</span>
+              </span>
+            </div>
+            <span className="text-xs text-gray-400">
+              Created {new Date(event.createdAt).toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' })}
+            </span>
           </div>
         </Card>
       </div>

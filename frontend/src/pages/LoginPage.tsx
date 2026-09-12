@@ -81,7 +81,7 @@ export default function LoginPage() {
               autoFocus
             />
           </Field>
-          <Button type="submit" className="w-full" disabled={code.length !== 6 || verifyMutation.isPending}>
+          <Button type="submit" className="w-full" disabled={code.length !== 6} loading={verifyMutation.isPending}>
             {verifyMutation.isPending ? 'Verifying…' : 'Verify'}
           </Button>
           <button
@@ -112,7 +112,7 @@ export default function LoginPage() {
           <PasswordInput id="password" autoComplete="current-password" {...register('password')} />
         </Field>
         {errors.root && <ErrorBanner>{errors.root.message}</ErrorBanner>}
-        <Button type="submit" className="w-full" disabled={loginMutation.isPending}>
+        <Button type="submit" className="w-full" loading={loginMutation.isPending}>
           {loginMutation.isPending ? 'Logging in…' : 'Log in'}
         </Button>
       </form>

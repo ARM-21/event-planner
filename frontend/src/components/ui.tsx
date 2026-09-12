@@ -1,5 +1,21 @@
 import { forwardRef, useState, type ButtonHTMLAttributes, type InputHTMLAttributes, type ReactNode, type SelectHTMLAttributes, type TextareaHTMLAttributes } from 'react';
-import { AlertCircle, Eye, EyeOff, X } from 'lucide-react';
+import { AlertCircle, Eye, EyeOff, Loader2, X } from 'lucide-react';
+
+// Inherits the surrounding text colour, so it works on a filled button and on
+// a plain background without needing a variant of its own.
+export function Spinner({ className = 'h-4 w-4' }: { className?: string }) {
+  return <Loader2 className={`animate-spin ${className}`} aria-hidden="true" />;
+}
+
+// Stands in for a whole page or section while its query is still in flight.
+export function PageLoader({ label = 'Loading…' }: { label?: string }) {
+  return (
+    <div role="status" aria-live="polite" className="flex flex-col items-center justify-center gap-3 py-20 text-gray-500">
+      <Spinner className="h-7 w-7 text-indigo-600" />
+      <span className="text-sm">{label}</span>
+    </div>
+  );
+}
 
 type ButtonVariant = 'primary' | 'secondary' | 'danger';
 
@@ -9,16 +25,25 @@ const buttonVariantClasses: Record<ButtonVariant, string> = {
   danger: 'bg-red-600 text-white hover:bg-red-500 focus-visible:outline-red-600',
 };
 
+// `loading` shows a spinner in front of the label and disables the button, so
+// every mutation gets the same treatment without repeating it at each call site.
 export function Button({
   className = '',
   variant = 'primary',
+  loading = false,
+  disabled,
+  children,
   ...props
-}: ButtonHTMLAttributes<HTMLButtonElement> & { variant?: ButtonVariant }) {
+}: ButtonHTMLAttributes<HTMLButtonElement> & { variant?: ButtonVariant; loading?: boolean }) {
   return (
     <button
-      className={`inline-flex items-center justify-center rounded-md px-4 py-2 text-sm font-medium transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 disabled:cursor-not-allowed disabled:opacity-50 ${buttonVariantClasses[variant]} ${className}`}
+      className={`inline-flex items-center justify-center gap-2 rounded-md px-4 py-2 text-sm font-medium transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 disabled:cursor-not-allowed disabled:opacity-50 ${buttonVariantClasses[variant]} ${className}`}
+      disabled={disabled || loading}
       {...props}
-    />
+    >
+      {loading && <Spinner />}
+      {children}
+    </button>
   );
 }
 

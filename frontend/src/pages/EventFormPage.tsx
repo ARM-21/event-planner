@@ -14,7 +14,7 @@ import { useEvent } from '../query/events/use-event';
 import { useTags } from '../query/tags/use-tags';
 import { createEventFormSchema, eventFormSchema, MIN_LEAD_TIME_MS, type EventFormValues } from '../lib/schemas';
 import { ROUTES } from '../config/routes';
-import { Button, Card, Field, Input, Select, Textarea } from '../components/ui';
+import { Button, Card, Field, Input, PageLoader, Select, Textarea } from '../components/ui';
 import { AppShell } from '../components/AppShell';
 import { TagInput } from '../components/TagInput';
 
@@ -154,7 +154,7 @@ export default function EventFormPage() {
   if (isEdit && eventQuery.isLoading) {
     return (
       <AppShell>
-        <p className="text-gray-500">Loading…</p>
+        <PageLoader label="Loading event…" />
       </AppShell>
     );
   }
@@ -240,7 +240,7 @@ export default function EventFormPage() {
               </p>
             )}
             <div className="flex gap-3 pt-2">
-              <Button type="submit" disabled={submitting}>
+              <Button type="submit" loading={submitting}>
                 {submitting ? 'Saving…' : isEdit ? 'Save changes' : 'Create event'}
               </Button>
               <Button type="button" variant="secondary" onClick={() => navigate(ROUTES.EVENTS)}>

@@ -52,7 +52,7 @@ export default function RegisterPage() {
           <PasswordInput id="password" autoComplete="new-password" {...register('password')} />
         </Field>
         {errors.root && <ErrorBanner>{errors.root.message}</ErrorBanner>}
-        <Button type="submit" className="w-full" disabled={registerMutation.isPending}>
+        <Button type="submit" className="w-full" loading={registerMutation.isPending}>
           {registerMutation.isPending ? 'Creating account…' : 'Create account'}
         </Button>
       </form>

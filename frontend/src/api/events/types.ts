@@ -14,6 +14,7 @@ export interface EventItem {
   location: string;
   visibility: 'public' | 'private';
   creatorId: number;
+  creatorName: string;
   tags: string[];
   createdAt: string;
   updatedAt: string;

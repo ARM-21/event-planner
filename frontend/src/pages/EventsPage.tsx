@@ -11,7 +11,7 @@ import { useAuth } from '../contexts/auth';
 import { useDebounce } from '../hooks/use-debounce';
 import { useEvents } from '../query/events/use-events';
 import { useTags } from '../query/tags/use-tags';
-import { Button, Select } from '../components/ui';
+import { Button, PageLoader, Select } from '../components/ui';
 import { AppShell } from '../components/AppShell';
 import { ROUTES } from '../config/routes';
 import { EventCard } from '../components/EventCard';
@@ -125,7 +125,7 @@ export default function EventsPage() {
             ) : (
               <>
                 <span>Please verify your email address.</span>
-                <Button variant="secondary" onClick={() => resendMutation.mutate()} disabled={resendMutation.isPending}>
+                <Button variant="secondary" onClick={() => resendMutation.mutate()} loading={resendMutation.isPending}>
                   {resendMutation.isPending ? 'Sending…' : 'Resend verification email'}
                 </Button>
               </>
@@ -257,7 +257,7 @@ export default function EventsPage() {
 
         <div>
           {eventsQuery.isLoading ? (
-            <p className="text-gray-500">Loading events…</p>
+            <PageLoader label="Loading events…" />
           ) : events.length === 0 ? (
             <div className="rounded-xl border border-dashed border-gray-300 bg-white py-16 text-center">
               <p className="text-gray-500">No events found.</p>
