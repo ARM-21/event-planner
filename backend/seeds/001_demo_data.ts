@@ -44,7 +44,7 @@ const EVENTS: SeedEvent[] = [
     creator: 'ada',
     title: 'Future of Work Conference',
     description:
-      'A day of talks on remote-first teams, async collaboration, and the tools reshaping how we work.',
+      'A full day across two tracks on remote-first teams, async collaboration and the tooling that actually holds up at scale. Talks run forty minutes with real time for questions, and the hallway track is deliberately long. Lunch and coffee included.',
     startsInDays: 3,
     hours: 8,
     location: 'Austin Convention Center, Austin, TX',
@@ -57,7 +57,7 @@ const EVENTS: SeedEvent[] = [
   {
     creator: 'yuki',
     title: 'Morning Trail Run',
-    description: 'Easy 8k loop at conversational pace. All levels welcome, we regroup at every gate.',
+    description: 'An easy 8k loop at conversational pace, which in practice means nobody gets dropped. We regroup at every gate and there is a slightly faster group for anyone who wants one. Bring water, and the cafe at the end does a good flat white.',
     startsInDays: 1,
     hours: 2,
     location: 'Richmond Park, London',
@@ -69,7 +69,7 @@ const EVENTS: SeedEvent[] = [
   {
     creator: 'priya',
     title: 'Hackathon: Build in a Weekend',
-    description: 'Two days, any stack, one demo at the end. Teams of up to four.',
+    description: 'Two days, any stack, teams of up to four, and a five-minute demo at the end. API credits and hardware provided, along with far too much pizza. The prizes are deliberately small so people build the thing they actually wanted to build.',
     startsInDays: 21,
     hours: 48,
     location: 'Warehouse 9, Manchester',
@@ -83,7 +83,7 @@ const EVENTS: SeedEvent[] = [
     creator: 'priya',
     title: 'Kubernetes Deep Dive',
     description:
-      'Scheduling, resource limits and what actually happens when a pod gets evicted. Bring a laptop.',
+      'Scheduling, resource limits, and what actually happens when a pod gets evicted at three in the morning. Half the session is hands-on against a throwaway cluster, so bring a laptop with kubectl already working.',
     startsInDays: 9,
     hours: 3,
     location: 'Lisbon Tech Hub, Lisbon',
@@ -96,7 +96,7 @@ const EVENTS: SeedEvent[] = [
   {
     creator: 'priya',
     title: 'Women in Engineering Panel',
-    description: 'Five engineers on career switches, staying technical, and saying no to hero work.',
+    description: 'Five engineers on career switches, staying technical past senior, and learning to say no to hero work. Audience questions take the whole second half, and there is time afterwards for the conversations people would rather have off the record.',
     startsInDays: 19,
     hours: 2,
     location: 'Barbican Centre, London',
@@ -108,7 +108,7 @@ const EVENTS: SeedEvent[] = [
   {
     creator: 'ada',
     title: 'Design Systems Workshop',
-    description: 'Hands-on session building a token-based component library from scratch.',
+    description: 'Building a token-based component library from scratch, starting with colour and spacing scales and finishing with a button that survives a theme switch. Bring a laptop with Figma and Node already installed.',
     startsInDays: 5,
     hours: 2,
     location: 'Remote',
@@ -121,7 +121,7 @@ const EVENTS: SeedEvent[] = [
   {
     creator: 'sofia',
     title: 'Street Food Festival',
-    description: 'Thirty stalls, three live sets, one very long queue for the dumplings.',
+    description: 'Thirty stalls, three live sets across the afternoon, and one queue for the dumplings that is genuinely worth standing in. Cash and card both fine, dogs welcome, and most stalls have a vegetarian option.',
     startsInDays: 14,
     hours: 9,
     location: 'Camden Market, London',
@@ -135,7 +135,7 @@ const EVENTS: SeedEvent[] = [
     creator: 'omar',
     title: 'Database Indexing Masterclass',
     description:
-      'Composite indexes, covering indexes, and reading an EXPLAIN plan without guessing. The query planner is less mysterious than it looks.',
+      'Composite indexes, covering indexes, and reading an EXPLAIN plan without guessing your way through it. We work against a deliberately badly indexed database and fix it together. The query planner is far less mysterious once you watch it change its mind.',
     startsInDays: 18,
     hours: 4,
     location: 'Remote',
@@ -147,7 +147,7 @@ const EVENTS: SeedEvent[] = [
   {
     creator: 'grace',
     title: 'Open Source Office Hours',
-    description: 'Drop-in Q&A for anyone contributing to the project. No question too small.',
+    description: 'Drop in with whatever is blocking your first pull request, whether that is the build, the test suite, or just picking an issue to start on. No question is too small and nothing is recorded.',
     startsInDays: 2,
     hours: 1,
     location: 'Remote',
@@ -160,7 +160,7 @@ const EVENTS: SeedEvent[] = [
   {
     creator: 'grace',
     title: 'Intro to TypeScript Generics',
-    description: 'From `Array<T>` to conditional types, with the bits people usually skip.',
+    description: 'From `Array<T>` through constraints and inference to conditional types, including the parts most tutorials skip because they are awkward to explain. Every example comes from a real codebase rather than a toy type.',
     startsInDays: 4,
     hours: 2,
     location: 'Remote',
@@ -172,7 +172,7 @@ const EVENTS: SeedEvent[] = [
   {
     creator: 'priya',
     title: 'Rust for JS Developers',
-    description: 'Ownership and borrowing explained for people who already think in closures.',
+    description: 'Ownership, borrowing and lifetimes explained for people who already think in closures and garbage collection. We port a small Node script across so the comparison stays concrete rather than theoretical.',
     startsInDays: 23,
     hours: 3,
     location: 'Manchester Tech Hub, Manchester',
@@ -184,7 +184,7 @@ const EVENTS: SeedEvent[] = [
   {
     creator: 'sofia',
     title: 'Pitch Practice Evening',
-    description: 'Five minutes each, honest feedback, no slides allowed for the first round.',
+    description: 'Five minutes each, honest feedback from the room, and no slides at all in the first round so the story has to stand on its own. Bring the deck for the second round.',
     startsInDays: 16,
     hours: 2,
     location: 'Impact Hub, Lisbon',
@@ -208,7 +208,7 @@ const EVENTS: SeedEvent[] = [
   {
     creator: 'marcus',
     title: 'Board Game Social',
-    description: 'Heavy euros on one table, party games on the other. Snacks provided.',
+    description: 'Heavy euros on one table, party games on the other, and someone will inevitably try to teach Brass to a table of six. Snacks provided, and bring a game if you have a favourite.',
     startsInDays: 10,
     hours: 4,
     location: 'The Old Library, Bristol',
@@ -221,7 +221,7 @@ const EVENTS: SeedEvent[] = [
   {
     creator: 'marcus',
     title: 'Indie Music Night',
-    description: 'Four local bands, doors at seven.',
+    description: 'Four local bands across the evening, doors at seven and the last set finished by eleven. Bar open throughout, tickets on the door only.',
     startsInDays: 11,
     hours: 4,
     location: 'The Bullring, Birmingham',
@@ -233,7 +233,7 @@ const EVENTS: SeedEvent[] = [
   {
     creator: 'marcus',
     title: 'Open Mic Night',
-    description: 'Sign-up sheet opens at six. Five minutes each, any format.',
+    description: 'The sign-up sheet goes up at six and fills fast. Five minutes each, any format, music and spoken word equally welcome. A house guitar and an amp are there if you would rather travel light.',
     startsInDays: 26,
     hours: 3,
     location: 'The Fleece, Bristol',
@@ -245,7 +245,7 @@ const EVENTS: SeedEvent[] = [
   {
     creator: 'grace',
     title: 'Docs Sprint',
-    description: 'One afternoon spent entirely on the getting-started guide nobody has updated.',
+    description: 'One afternoon spent entirely on the getting-started guide nobody has touched since the rewrite. Pairs work through it exactly as a new user would, and every stumble becomes an issue.',
     startsInDays: 12,
     hours: 5,
     location: 'Remote',
@@ -257,7 +257,7 @@ const EVENTS: SeedEvent[] = [
   {
     creator: 'grace',
     title: 'Async Standup Experiment',
-    description: 'Trialling written standups for a month and comparing notes on what broke.',
+    description: 'We ran written standups for a month instead of the daily call. This session compares notes on what improved, what quietly broke, and whether any of it is worth keeping.',
     startsInDays: 17,
     hours: 1,
     location: 'Remote',
@@ -269,7 +269,7 @@ const EVENTS: SeedEvent[] = [
   {
     creator: 'omar',
     title: 'Accessibility Audit Clinic',
-    description: 'Bring a page, leave with a prioritised list of fixes and a keyboard-only demo.',
+    description: 'Bring one page from your product and leave with a prioritised list of fixes. We go through it using a screen reader and the keyboard only, which is usually the part that changes minds.',
     startsInDays: 6,
     hours: 3,
     location: 'Remote',
@@ -282,7 +282,7 @@ const EVENTS: SeedEvent[] = [
   {
     creator: 'yuki',
     title: 'Photography Walk',
-    description: 'Golden hour along the river. Any camera, phones absolutely fine.',
+    description: 'Golden hour along the river, finishing at the bridge for the last of the light. Any camera at all, phones absolutely fine, and there is no skill floor for turning up.',
     startsInDays: 13,
     hours: 3,
     location: 'Kyoto Riverside, Kyoto',
@@ -294,7 +294,7 @@ const EVENTS: SeedEvent[] = [
   {
     creator: 'sofia',
     title: 'Coffee & Code',
-    description: 'No agenda, no talks. Bring whatever you are stuck on.',
+    description: 'No agenda, no talks, no projector. Bring whatever you are stuck on, or just sit with a laptop and get your own work done alongside other people doing the same.',
     startsInDays: 20,
     hours: 2,
     location: 'Blue Bottle, Shoreditch, London',
@@ -321,7 +321,7 @@ const EVENTS: SeedEvent[] = [
   {
     creator: 'ada',
     title: 'Founders Dinner',
-    description: 'Small table, no agenda.',
+    description: 'A small table and no agenda beyond whatever people actually want to talk about. Twelve seats, dinner is covered, and nothing leaves the room.',
     startsInDays: 7,
     hours: 2,
     location: 'Private venue, Soho, London',
@@ -333,7 +333,7 @@ const EVENTS: SeedEvent[] = [
   {
     creator: 'ada',
     title: 'Quarterly Roadmap Review',
-    description: 'Internal only. Walking through what slipped and why.',
+    description: 'Internal only. Walking through what shipped, what slipped, and honestly why, before next quarter planning starts.',
     startsInDays: 8,
     hours: 2,
     location: 'HQ, 4th floor',
@@ -355,7 +355,7 @@ const EVENTS: SeedEvent[] = [
   {
     creator: 'priya',
     title: 'Interview Panel Sync',
-    description: 'Private to the hiring panel. Calibrating scores before next week.',
+    description: 'Private to the hiring panel. Calibrating scores and agreeing what the bar actually looks like before next week loop.',
     startsInDays: 5,
     hours: 1,
     location: 'Remote',
@@ -368,7 +368,7 @@ const EVENTS: SeedEvent[] = [
   {
     creator: 'omar',
     title: 'Incident Response Drill',
-    description: 'Running right now. Started earlier today and finishes later this afternoon.',
+    description: 'A simulated outage run end to end, with a real pager rotation and a deliberately unhelpful dashboard. Started earlier today and runs through the afternoon.',
     startsInDays: -0.05,
     hours: 3,
     location: 'Remote',
@@ -382,7 +382,7 @@ const EVENTS: SeedEvent[] = [
   {
     creator: 'priya',
     title: 'Summer Meetup',
-    description: 'Rooftop, far too much sun, a surprisingly good talk about caching.',
+    description: 'A rooftop, far too much sun, and a surprisingly good talk about caching that people still bring up. Two short talks and then the rest of the evening left deliberately unstructured.',
     startsInDays: -40,
     hours: 3,
     location: 'Rooftop, Lisbon',
@@ -394,7 +394,7 @@ const EVENTS: SeedEvent[] = [
   {
     creator: 'yuki',
     title: 'Winter Hack Day',
-    description: 'One day, eight projects, three of which still run in production.',
+    description: 'One day, eight projects, and three of them somehow still running in production a year later. Demos at five, no judging and no prizes.',
     startsInDays: -60,
     hours: 8,
     location: 'Tokyo Office, Tokyo',
@@ -406,7 +406,7 @@ const EVENTS: SeedEvent[] = [
   {
     creator: 'grace',
     title: 'Legacy Migration Postmortem',
-    description: 'What went wrong during the cutover and what we would do differently.',
+    description: 'What went wrong during the cutover, in what order, and how much of it we could realistically have predicted. Blameless format, and the timeline goes on the wall before anyone speaks.',
     startsInDays: -25,
     hours: 2,
     location: 'Remote',
@@ -418,7 +418,7 @@ const EVENTS: SeedEvent[] = [
   {
     creator: 'ada',
     title: 'Onboarding Bootcamp',
-    description: 'Two days of setup, architecture walkthroughs and pairing for the new joiners.',
+    description: 'Two days for new joiners. Environment setup on the first morning, architecture walkthroughs after lunch, then pairing on a real ticket for the whole of day two.',
     startsInDays: -90,
     hours: 16,
     location: 'HQ, 4th floor',
@@ -430,7 +430,7 @@ const EVENTS: SeedEvent[] = [
   {
     creator: 'ada',
     title: 'Q3 Retro',
-    description: 'What went well, what did not, and the three things we are actually changing.',
+    description: 'What went well, what did not, and the three things we are actually changing rather than the twelve we could list. Every action has an owner before anyone leaves the room.',
     startsInDays: -10,
     hours: 1,
     location: 'HQ, 4th floor',
@@ -453,7 +453,7 @@ const EVENTS: SeedEvent[] = [
   {
     creator: 'sofia',
     title: 'Design Critique Session',
-    description: 'Three flows reviewed, one redesigned on the spot.',
+    description: 'Three flows reviewed properly, one of them redesigned on the spot once it was clear the problem sat upstream of the screen. Bring work in progress rather than finished pieces.',
     startsInDays: -7,
     hours: 2,
     location: 'Remote',
@@ -466,7 +466,7 @@ const EVENTS: SeedEvent[] = [
   {
     creator: 'omar',
     title: 'Budget Review',
-    description: 'Private. Numbers for the next two quarters.',
+    description: 'Private. Headcount and spend for the next two quarters, with the awkward conversations happening in the room rather than over email.',
     startsInDays: -30,
     hours: 2,
     location: 'HQ, 4th floor',
