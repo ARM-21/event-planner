@@ -207,6 +207,7 @@ Response `200`:
       "location": "Kathmandu",
       "visibility": "public",
       "creatorId": 1,
+      "creatorName": "Ada Lovelace",
       "tags": ["launch", "party"],
       "createdAt": "...",
       "updatedAt": "..."
@@ -232,7 +233,9 @@ Request:
 ```
 
 `tags` is a list of tag names; unknown names are created. `creatorId` comes
-from the JWT, never the body. `startsAt` must be at least 24 hours from the
+from the JWT, never the body. `creatorName` is joined from `users.name` and is
+the **only** creator detail any endpoint returns — no email, no avatar, and
+there is no endpoint for viewing another user's profile. `startsAt` must be at least 24 hours from the
 time of the request (a business rule, not just "in the future") — this is
 re-checked on `PUT` too, but only when `startsAt` is actually part of that
 request. `endsAt` must be at least 15 minutes after `startsAt`. Response
@@ -280,6 +283,10 @@ authenticated user may RSVP to any event they can already `GET` (including
 their own, though the frontend doesn't surface the control to the event's
 creator). Response `200`: `{ "goingCount": 3, "myStatus": "going" }`.
 
+Returns `400 This event has already ended` once `ends_at` has passed. The
+comparison runs in SQL against the database clock, so it does not depend on
+either the caller's clock or the app server's.
+
 Errors: `400` validation (status isn't one of the three values), `401`
 no/invalid token, `404` event doesn't exist or is private and hidden from
 this requester — same existence-hiding rule as `GET /api/events/:id`, so
@@ -289,7 +296,8 @@ this can't be used to probe for a private event's existence either.
 
 Clears the caller's own RSVP entirely, back to "no response" — distinct
 from setting `status` to `"not_going"`, which is still a recorded answer.
-No-op (still `204`) if the caller had no RSVP recorded.
+No-op (still `204`) if the caller had no RSVP recorded. Like the `PUT`, this
+returns `400 This event has already ended` once `ends_at` has passed.
 
 Response `204` no body. Errors: `401`, `404` — same rules as `PUT .../rsvp`.
 
