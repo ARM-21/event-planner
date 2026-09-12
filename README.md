@@ -176,11 +176,12 @@ touches the database.
 * **Tag names are case-insensitive.** "Design" and "design" resolve to the same tag rather than creating duplicate tags.
 * **Email verification is a soft gate.** Unverified users can still log in and use the application.
 * **Any authenticated user can RSVP to any event they can view**, including their own. There is no invitation or attendee-approval system.
+* **RSVP closes once an event has ended.** A past event keeps its final going count, but the controls are hidden in the UI and the API rejects any new or changed response with a `400`. The check runs against the database clock, not the browser's.
 * **New events default to `public` visibility** when no visibility is specified.
 * **Email addresses are case-insensitive.** `Ada@Example.com` and `ada@example.com` are treated as the same account for registration and login.
 * **New events must start at least 24 hours from creation time**, not just "in the future." This only applies when `startsAt` is being set, so editing other fields on an event whose start time has since drifted under 24 hours away still works.
 * **`endsAt` must be at least 15 minutes after `startsAt`.**
-* **The event API never exposes who created it beyond a `creatorId`.** No creator name, email, or avatar is returned to viewers.
+* **The event API exposes the creator's name and nothing else about them.** No email, no avatar image, and no profile to visit. The circle shown beside the name is just their initials rendered in the UI, so no extra data is fetched or stored for it.
 * **Events have no photo upload.** Each event's cover is an auto-generated gradient based on its title and ID, not a user-uploaded image.
 
 ### Data Model Assumptions
