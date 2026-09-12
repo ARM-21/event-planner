@@ -2,6 +2,7 @@ import type { Knex } from 'knex';
 import { db } from '../../db/knex';
 import type {
   EventRow,
+  EventRowWithEndState,
   RsvpStatus,
   EventRsvpRow,
   RsvpSummary,
@@ -21,6 +22,7 @@ export function toPublicEvent(row: EventRow, tags: string[]) {
     location: row.location,
     visibility: row.visibility,
     creatorId: row.creator_id,
+    creatorName: row.creator_name,
     tags,
     createdAt: new Date(row.created_at).toISOString(),
     updatedAt: new Date(row.updated_at).toISOString(),
@@ -104,7 +106,10 @@ export async function listEvents(params: ListEventsParams, userId: number | unde
   const sortColumn = sort.startsWith('-') ? sort.slice(1) : sort;
   const sortDir = sort.startsWith('-') ? 'desc' : 'asc';
 
-  let rowsQuery = base.clone().select('events.*');
+  let rowsQuery = base
+    .clone()
+    .join('users', 'users.id', 'events.creator_id')
+    .select('events.*', 'users.name as creator_name');
   if (sortColumn === 'popularity') {
     // pre-grouped subquery so the left join can't fan out row counts;
     // COALESCE treats zero RSVPs as 0 rather than NULL
@@ -120,8 +125,12 @@ export async function listEvents(params: ListEventsParams, userId: number | unde
   return { rows, total };
 }
 
-export async function findEventById(id: number): Promise<EventRow | undefined> {
-  return db<EventRow>('events').where({ id }).first();
+export async function findEventById(id: number): Promise<EventRowWithEndState | undefined> {
+  return db<EventRowWithEndState>('events')
+    .join('users', 'users.id', 'events.creator_id')
+    .select('events.*', 'users.name as creator_name', db.raw('(ends_at < ?) as has_ended', [db.fn.now()]))
+    .where('events.id', id)
+    .first();
 }
 
 export async function createEventRecord(input: CreateEventInput): Promise<EventRow> {
@@ -139,7 +148,11 @@ export async function createEventRecord(input: CreateEventInput): Promise<EventR
       const tagIds = await upsertTagIds(trx, input.tags);
       await trx('event_tags').insert(tagIds.map((tagId) => ({ event_id: id, tag_id: tagId })));
     }
-    const row = await trx<EventRow>('events').where({ id }).first();
+    const row = await trx<EventRow>('events')
+      .join('users', 'users.id', 'events.creator_id')
+      .select('events.*', 'users.name as creator_name')
+      .where('events.id', id)
+      .first();
     return row!;
   });
 }
@@ -156,7 +169,11 @@ export async function updateEventRecord(id: number, input: UpdateEventInput): Pr
         await trx('event_tags').insert(tagIds.map((tagId) => ({ event_id: id, tag_id: tagId })));
       }
     }
-    const row = await trx<EventRow>('events').where({ id }).first();
+    const row = await trx<EventRow>('events')
+      .join('users', 'users.id', 'events.creator_id')
+      .select('events.*', 'users.name as creator_name')
+      .where('events.id', id)
+      .first();
     return row!;
   });
 }

@@ -128,6 +128,10 @@ router.put('/:id/rsvp', requireAuth, async (req, res, next) => {
       next(notFound('Event not found'));
       return;
     }
+    if (existing.has_ended) {
+      next(badRequest('This event has already ended'));
+      return;
+    }
 
     await upsertRsvp(id, req.userId!, parsed.data.status);
 
@@ -150,6 +154,10 @@ router.delete('/:id/rsvp', requireAuth, async (req, res, next) => {
     const existing = await findEventById(id);
     if (!existing || isHiddenFromViewer(existing, req.userId)) {
       next(notFound('Event not found'));
+      return;
+    }
+    if (existing.has_ended) {
+      next(badRequest('This event has already ended'));
       return;
     }
 
