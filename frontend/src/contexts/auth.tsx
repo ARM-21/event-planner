@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import type { AuthResponse, User } from '../api/auth/types';
 import { logoutRequest } from '../api/auth/logout';
@@ -33,15 +34,19 @@ function loadStored(): AuthResponse | null {
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const stored = loadStored();
   const [user, setUser] = useState<User | null>(stored?.user ?? null);
   const [token, setTokenState] = useState<string | null>(stored?.token ?? null);
 
+  // Queries are cached for minutes, so drop them whenever the user changes,
+  // otherwise the next user could see the previous one's private events.
   const setSession = useCallback((data: AuthResponse) => {
+    queryClient.clear();
     localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
     setUser(data.user);
     setTokenState(data.token);
-  }, []);
+  }, [queryClient]);
 
   // Reads the token from localStorage rather than closing over `token` state.
   const updateUser = useCallback((patch: Partial<User>) => {
@@ -75,6 +80,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const handleSessionExpired = () => {
       const hadSession = loadStored() !== null;
       localStorage.removeItem(STORAGE_KEY);
+      queryClient.clear();
       setUser(null);
       setTokenState(null);
       if (hadSession) {
@@ -84,16 +90,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
     setSessionExpiredListener(handleSessionExpired);
     return () => setSessionExpiredListener(null);
-  }, [navigate]);
+  }, [navigate, queryClient]);
 
   const logout = useCallback(() => {
     // Fire-and-forget — clearing local state shouldn't wait on the network call.
     logoutRequest().catch(() => {});
     localStorage.removeItem(STORAGE_KEY);
+    queryClient.clear();
     setUser(null);
     setTokenState(null);
     toast.success('Logged out');
-  }, []);
+  }, [queryClient]);
 
   return (
     <AuthContext.Provider value={{ user, token, setSession, updateUser, setAccessToken, logout }}>
