@@ -150,9 +150,12 @@ touches the database.
 - Routes call services directly, with no controller or repository layer. `*.routes.ts` handles the
   HTTP part and calls into `*.service.ts`, which holds the logic and its own queries. With three
   modules, two more layers would only mean more files to open for a single request.
-- React Query holds all the server state. The main reason was invalidation rather than caching,
-  since `invalidateQueries(['events'])` after a mutation is safer than syncing a going count between
-  the list and the detail page by hand.
+- React Query holds all the server state. Mutations call `invalidateQueries(['events'])`, which is
+  safer than syncing a going count between the list and the detail page by hand. Queries use a 5
+  minute `staleTime`, so going back and forth between the list and an event reuses the cached data
+  instead of refetching on every page change. Your own changes still show immediately because
+  mutations invalidate the cache, and the cache is cleared on login and logout so one user's data
+  never shows for the next.
 - React Hook Form with Zod for the forms, and the same rules run again on the backend. The frontend
   validation is only for feedback because anyone can skip it with curl, so the backend one is the
   real check.
