@@ -1,5 +1,6 @@
 import { db } from '../../db/knex';
 import type { UserRow } from './auth.types';
+import { encryptTotpSecret } from './totp';
 
 export function toPublicUser(
   row: Pick<UserRow, 'id' | 'name' | 'email' | 'email_verified_at' | 'two_factor_enabled'>,
@@ -27,7 +28,7 @@ export async function createUser(input: { name: string; email: string; passwordH
 }
 
 export async function setTotpSecret(userId: number, secret: string): Promise<void> {
-  await db('users').where({ id: userId }).update({ totp_secret: secret });
+  await db('users').where({ id: userId }).update({ totp_secret: encryptTotpSecret(secret) });
 }
 
 export async function enableTwoFactor(userId: number): Promise<void> {

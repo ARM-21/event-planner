@@ -28,7 +28,7 @@ import {
 } from './auth.service';
 import { createRefreshToken, rotateRefreshToken, revokeRefreshToken } from './refresh-tokens.service';
 import type { SessionMeta } from './auth.types';
-import { generateTotpSecret, generateTotpQrCode, verifyTotpCode, getCurrentTotpCode } from './totp';
+import { generateTotpSecret, generateTotpQrCode, verifyTotpCode, getCurrentTotpCode, decryptTotpSecret } from './totp';
 
 const router = Router();
 
@@ -141,7 +141,10 @@ router.post('/login', async (req, res, next) => {
 
     if (user.two_factor_enabled) {
       if (env.nodeEnv !== 'production' && user.totp_secret) {
-        logger.info('[dev] 2FA code', { email: user.email, code: await getCurrentTotpCode(user.totp_secret) });
+        logger.info('[dev] 2FA code', {
+          email: user.email,
+          code: await getCurrentTotpCode(decryptTotpSecret(user.totp_secret)),
+        });
       }
       const preAuthToken = issuePreAuthToken(user.id);
       res.status(200).json({ twoFactorRequired: true, preAuthToken });
@@ -199,7 +202,7 @@ router.post('/2fa/enable', twoFactorEnableLimiter, requireAuth, async (req, res,
       return;
     }
 
-    const valid = await verifyTotpCode(user.totp_secret, parsed.data.code);
+    const valid = await verifyTotpCode(decryptTotpSecret(user.totp_secret), parsed.data.code);
     if (!valid) {
       next(unauthorized('Invalid code'));
       return;
@@ -271,7 +274,7 @@ router.post('/2fa/verify', twoFactorVerifyLimiter, async (req, res, next) => {
       return;
     }
 
-    const valid = await verifyTotpCode(user.totp_secret, code);
+    const valid = await verifyTotpCode(decryptTotpSecret(user.totp_secret), code);
     if (!valid) {
       next(unauthorized('Invalid code'));
       return;

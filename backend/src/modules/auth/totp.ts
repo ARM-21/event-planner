@@ -1,7 +1,25 @@
+import crypto from 'crypto';
 import { OTP } from 'otplib';
 import QRCode from 'qrcode';
+import { env } from '../../config/env';
 
 const otp = new OTP(); // TOTP, 6 digits, 30s period, SHA-1
+
+// Can't be hashed: the server needs the plain secret to compute codes. AES-256-GCM with a
+// fresh random IV per call, stored as "iv.tag.ciphertext"; a wrong key or edited value throws.
+export function encryptTotpSecret(secret: string): string {
+  const iv = crypto.randomBytes(12);
+  const cipher = crypto.createCipheriv('aes-256-gcm', env.totpEncryptionKey, iv);
+  const data = Buffer.concat([cipher.update(secret, 'utf8'), cipher.final()]);
+  return [iv, cipher.getAuthTag(), data].map((part) => part.toString('base64')).join('.');
+}
+
+export function decryptTotpSecret(stored: string): string {
+  const [iv, tag, data] = stored.split('.').map((part) => Buffer.from(part, 'base64'));
+  const decipher = crypto.createDecipheriv('aes-256-gcm', env.totpEncryptionKey, iv);
+  decipher.setAuthTag(tag);
+  return Buffer.concat([decipher.update(data), decipher.final()]).toString('utf8');
+}
 
 export function generateTotpSecret(): string {
   return otp.generateSecret();

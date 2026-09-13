@@ -11,11 +11,21 @@ function required(name: string): string {
   return value;
 }
 
+// AES-256 needs exactly 32 bytes; fail at boot rather than on someone's 2FA login.
+function encryptionKey(name: string): Buffer {
+  const key = Buffer.from(required(name), 'base64');
+  if (key.length !== 32) {
+    throw new Error(`${name} must be 32 bytes, base64 encoded (openssl rand -base64 32)`);
+  }
+  return key;
+}
+
 const nodeEnv = process.env.NODE_ENV ?? 'development';
 
 export const env = {
   port: Number(process.env.PORT ?? 4000),
   jwtSecret: required('JWT_SECRET'),
+  totpEncryptionKey: encryptionKey('TOTP_ENCRYPTION_KEY'),
   frontendUrl: process.env.FRONTEND_URL ?? 'http://localhost:5173',
   nodeEnv,
   logLevel: process.env.LOG_LEVEL ?? (nodeEnv === 'production' ? 'http' : 'debug'),

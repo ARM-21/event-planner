@@ -21,8 +21,11 @@ if (env.trustProxy) {
   app.set('trust proxy', 1);
 }
 
-// CSP off: swagger-ui-express needs inline scripts/styles it would block
-app.use(helmet({ contentSecurityPolicy: false }));
+// CSP on everywhere except /api/docs, where swagger-ui-express needs inline scripts/styles.
+// Chosen per request: a later helmet() can't remove a CSP header an earlier one already set.
+const defaultHelmet = helmet();
+const docsHelmet = helmet({ contentSecurityPolicy: false });
+app.use((req, res, next) => (req.path.startsWith('/api/docs') ? docsHelmet : defaultHelmet)(req, res, next));
 // credentials: true so the browser sends/accepts the httpOnly refresh cookie cross-origin
 app.use(cors({ origin: env.corsOrigins, credentials: true }));
 app.use(compression());
