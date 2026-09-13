@@ -19,7 +19,7 @@ users ──< email_verifications
 | `email`         | VARCHAR(255)        | NOT NULL, UNIQUE            |
 | `password_hash` | VARCHAR(255)        | NOT NULL                    |
 | `email_verified_at` | DATETIME        | NULL — set once the emailed link is confirmed |
-| `totp_secret`   | VARCHAR(64)         | NULL — base32 TOTP secret, set by `POST /auth/2fa/setup` |
+| `totp_secret`   | VARCHAR(255)        | NULL, AES-256-GCM encrypted TOTP secret (`iv.tag.ciphertext`), set by `POST /auth/2fa/setup` |
 | `two_factor_enabled` | BOOLEAN        | NOT NULL, default `false` |
 | `created_at`    | DATETIME            | NOT NULL, default now (UTC) |
 | `updated_at`    | DATETIME            | NOT NULL, default now (UTC), auto-updated |

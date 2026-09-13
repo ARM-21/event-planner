@@ -46,6 +46,8 @@ Using the included `docker-compose.yml` (recommended):
 
 ```bash
 cp backend/.env.example backend/.env
+# recommended: set TOTP_ENCRYPTION_KEY in backend/.env to the output of
+openssl rand -base64 32
 # edit backend/.env if you want non-default credentials/ports
 docker compose --env-file backend/.env up -d
 ```
@@ -153,6 +155,10 @@ Each decision below says what was built, where it lives, and why.
 - Login on a 2FA account does not return a session. It returns a 5 minute `pre_auth` JWT, which
   `requireAuth` rejects, and which is only accepted by `POST /auth/2fa/verify` together with the
   6 digit code.
+- The secret is encrypted with AES-256-GCM before it is saved, using `TOTP_ENCRYPTION_KEY` from the
+  environment. It cannot be hashed like a password, because the server needs the real secret to
+  check codes. One key covers all users, and a random IV per encryption keeps identical secrets from
+  looking the same.
 - Disabling 2FA requires the account password, not only a logged in session.
 - The verify and enable endpoints have their own rate limit of 5 attempts per minute, on top of the
   general auth limiter.
@@ -371,7 +377,7 @@ details are in `docs/database-schema.md`.
   enforced in code, not by a `UNIQUE` constraint. Only the token hash is stored.
 * **Users → 2FA secret: at most one, stored on `users`.**
   Assumed: one authenticator per account, so no separate table is needed.
-  Effect: `totp_secret` is nullable and `two_factor_enabled` is a separate flag. The secret is saved
+  Effect: `totp_secret` is nullable, encrypted, and `two_factor_enabled` is a separate flag. The secret is saved
   at setup but only counts once the flag is set by a confirmed code, and disabling clears both.
 * **Every event has an end time.**
   Assumed: past or upcoming status and closing RSVPs depend on when an event finishes.
@@ -387,56 +393,12 @@ details are in `docs/database-schema.md`.
 
 ### Deliberate Limitations
 
-Known gaps, left out on purpose to keep the scope of a take-home. Each says what it means today and
-how it would be fixed.
+Known gaps, left out on purpose to keep the scope of a take-home.
 
-**Accounts**
-
-* **No password reset, password change, profile edit or account deletion.**
-  Today: a forgotten password means a new account.
-  Fix: a reset flow using the same hashed, expiring token pattern as email verification.
-* **2FA has no recovery codes.**
-  Today: losing the authenticator device locks the account, since disabling 2FA needs a login.
-  Fix: issue one-time hashed backup codes when 2FA is enabled.
-
-**Security**
-
-* **`totp_secret` is stored in plain text.**
-  Today: anyone with a copy of the database could generate valid 2FA codes.
-  Fix: encrypt the column with a key kept outside the database.
-* **The access token is kept in `localStorage`.**
-  Today: an XSS bug could read it. The damage is limited because it expires after 15 minutes and
-  the refresh token stays in an httpOnly cookie.
-  Fix: keep the access token in memory only and get a new one on page load.
-* **Content Security Policy is turned off.**
-  Today: `helmet()` runs with `contentSecurityPolicy: false` for the whole API, because Swagger UI
-  needs inline scripts. `/api/docs` is also public.
-  Fix: turn CSP off only for the docs route, and hide the docs in production.
-* **Rate limits are loose and kept in memory.**
-  Today: auth allows 200 failed requests per 10 minutes per IP, and counters reset when the server
-  restarts or when running more than one instance.
-  Fix: a tighter login limit and a shared store such as Redis.
-
-**Data and behaviour**
-
-* **Events in progress show in neither tab.**
-  Today: Upcoming is "not started yet" and Past is "already ended".
-  Fix: let Upcoming mean "not ended yet".
-* **Search does not escape `%` and `_`.**
-  Today: searching for `%` matches every event. It is not an injection risk, since values are bound
-  parameters.
-  Fix: escape both characters before building the `LIKE` pattern.
-* **Expired tokens are never cleaned up.**
-  Today: revoked or expired `refresh_tokens` and `email_verifications` rows stay in the database.
-  Fix: a scheduled job that deletes old rows.
-* **The 24 hour rule uses the server clock.**
-  Today: `startsAt` is checked against the Node process time, while other time checks use the
-  database clock. They only differ if the two machines' clocks drift.
-  Fix: compare against the database time in the same query.
-
-**Testing**
-
-* **No automated tests.**
-  Today: behaviour was checked by hand with Postman, Swagger UI and the browser.
-  Fix: integration tests for the auth and event routes against a test database, starting with
-  refresh rotation, private event access and the RSVP rules.
+* **No password reset, password change, profile edit or account deletion.** A forgotten password
+  means creating a new account.
+* **2FA has no recovery codes.** Losing the authenticator device or secret locks the account, since turning
+  2FA off needs a login.
+* **Events in progress show in neither tab.** Upcoming means not started yet and Past means already
+  ended.
+* **No automated tests.** Behaviour was checked by hand with Postman, Swagger UI and the browser.
