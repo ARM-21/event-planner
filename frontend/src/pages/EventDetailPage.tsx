@@ -14,7 +14,6 @@ import { formatEventRange } from '../lib/formatEventRange';
 import { tagPillClass, coverGradientClass } from '../lib/tagStyle';
 import { initials } from '../lib/initials';
 import { ROUTES } from '../config/routes';
-import { AppShell } from '../components/AppShell';
 import { Button, Card, PageLoader, Spinner } from '../components/ui';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 
@@ -78,23 +77,23 @@ export default function EventDetailPage() {
 
   if (eventQuery.isLoading) {
     return (
-      <AppShell>
+      <>
         <PageLoader label="Loading event…" />
-      </AppShell>
+      </>
     );
   }
 
   if (eventQuery.isError || !eventQuery.data) {
     const message = eventQuery.error instanceof ApiError ? eventQuery.error.message : 'Event not found.';
     return (
-      <AppShell>
+      <>
         <Card className="mx-auto max-w-sm text-center">
           <p className="text-gray-700">{message}</p>
           <Link to={ROUTES.EVENTS} className="mt-4 inline-block text-sm font-medium text-indigo-600 hover:text-indigo-500">
             Back to events
           </Link>
         </Card>
-      </AppShell>
+      </>
     );
   }
 
@@ -112,7 +111,7 @@ export default function EventDetailPage() {
       : null;
 
   return (
-    <AppShell>
+    <>
       <div className="space-y-6">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <Link
@@ -264,6 +263,6 @@ export default function EventDetailPage() {
         onConfirm={() => deleteMutation.mutate()}
         onCancel={() => setConfirmingDelete(false)}
       />
-    </AppShell>
+    </>
   );
 }

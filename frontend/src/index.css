@@ -1,3 +1,30 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* Thin, muted scrollbars instead of the chunky OS default. Kept visible
+   (not hidden) so mouse users can still see and drag them. */
+@layer base {
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: theme('colors.gray.300') transparent;
+  }
+
+  /* Safari has no scrollbar-color yet, so style the WebKit pseudo-elements there. */
+  @supports not (scrollbar-color: auto) {
+    ::-webkit-scrollbar {
+      width: 8px;
+      height: 8px;
+    }
+    ::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    ::-webkit-scrollbar-thumb {
+      border-radius: 9999px;
+      background-color: theme('colors.gray.300');
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background-color: theme('colors.gray.400');
+    }
+  }
+}

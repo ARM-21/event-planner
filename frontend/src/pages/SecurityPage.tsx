@@ -1,7 +1,6 @@
 import { ShieldCheck } from 'lucide-react';
 import { useAuth } from '../contexts/auth';
 import { useTwoFactor } from '../hooks/use-two-factor';
-import { AppShell } from '../components/AppShell';
 import { Button, Card, Field, Input, PasswordInput } from '../components/ui';
 
 export default function SecurityPage() {
@@ -25,7 +24,7 @@ export default function SecurityPage() {
   } = useTwoFactor();
 
   return (
-    <AppShell>
+    <>
       <div className="mx-auto max-w-lg space-y-6">
         <h1 className="text-2xl font-bold text-gray-900">Security</h1>
 
@@ -78,7 +77,7 @@ export default function SecurityPage() {
             )
           ) : setup ? (
             <div className="mt-5 space-y-4">
-              <p className="text-sm text-gray-600">
+              <p className="text-[0.8rem] text-gray-600 md:text-base">
                 Scan this QR code with your authenticator app (Google Authenticator, Authy, 1Password, etc.).
               </p>
               <img src={setup.qrCodeDataUrl} alt="2FA QR code" className="mx-auto h-40 w-40" />
@@ -106,7 +105,7 @@ export default function SecurityPage() {
                   />
                 </Field>
                 <div className="flex gap-2">
-                  <Button type="submit" disabled={code.length !== 6 || isEnabling}>─ auth-api.ts    
+                  <Button type="submit" disabled={code.length !== 6 || isEnabling}> 
                     {isEnabling ? 'Confirming…' : 'Confirm & enable'}
                   </Button>
                   <Button type="button" variant="secondary" onClick={cancelSetup}>
@@ -124,6 +123,6 @@ export default function SecurityPage() {
           )}
         </Card>
       </div>
-    </AppShell>
+    </>
   );
 }

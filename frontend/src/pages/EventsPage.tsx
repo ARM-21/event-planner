@@ -12,7 +12,6 @@ import { useDebounce } from '../hooks/use-debounce';
 import { useEvents } from '../query/events/use-events';
 import { useTags } from '../query/tags/use-tags';
 import { Button, PageLoader, Select } from '../components/ui';
-import { AppShell } from '../components/AppShell';
 import { ROUTES } from '../config/routes';
 import { EventCard } from '../components/EventCard';
 import { Pagination } from '../components/Pagination';
@@ -106,7 +105,7 @@ export default function EventsPage() {
   const noFilterActive = !visibility && !tag;
 
   return (
-    <AppShell>
+    <>
       <div className="space-y-5">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <h1 className="text-2xl font-bold text-gray-900">Events</h1>
@@ -299,6 +298,6 @@ export default function EventsPage() {
         onConfirm={() => pendingDeleteId !== null && deleteMutation.mutate(pendingDeleteId)}
         onCancel={() => setPendingDeleteId(null)}
       />
-    </AppShell>
+    </>
   );
 }
