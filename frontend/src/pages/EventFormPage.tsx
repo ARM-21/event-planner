@@ -15,7 +15,6 @@ import { useTags } from '../query/tags/use-tags';
 import { createEventFormSchema, eventFormSchema, MIN_LEAD_TIME_MS, type EventFormValues } from '../lib/schemas';
 import { ROUTES } from '../config/routes';
 import { Button, Card, Field, Input, PageLoader, Select, Textarea } from '../components/ui';
-import { AppShell } from '../components/AppShell';
 import { TagInput } from '../components/TagInput';
 
 function toDatetimeLocal(iso: string): string {
@@ -153,43 +152,43 @@ export default function EventFormPage() {
 
   if (isEdit && eventQuery.isLoading) {
     return (
-      <AppShell>
+      <>
         <PageLoader label="Loading event…" />
-      </AppShell>
+      </>
     );
   }
 
   if (forbidden) {
     return (
-      <AppShell>
+      <>
         <Card className="mx-auto max-w-sm text-center">
           <p className="text-gray-700">You don&apos;t have permission to edit this event.</p>
           <Button className="mt-4" onClick={() => navigate(ROUTES.EVENTS)}>
             Back to events
           </Button>
         </Card>
-      </AppShell>
+      </>
     );
   }
 
   if (isEdit && eventQuery.isError) {
     const message = eventQuery.error instanceof ApiError ? eventQuery.error.message : 'Failed to load event.';
     return (
-      <AppShell>
+      <>
         <Card className="mx-auto max-w-sm text-center">
           <p className="text-gray-700">{message}</p>
           <Button className="mt-4" onClick={() => navigate(ROUTES.EVENTS)}>
             Back to events
           </Button>
         </Card>
-      </AppShell>
+      </>
     );
   }
 
   const submitting = createMutation.isPending || updateMutation.isPending;
 
   return (
-    <AppShell>
+    <>
       <div className="mx-auto max-w-2xl space-y-6">
         <Link
           to={ROUTES.EVENTS}
@@ -250,6 +249,6 @@ export default function EventFormPage() {
           </form>
         </Card>
       </div>
-    </AppShell>
+    </>
   );
 }
